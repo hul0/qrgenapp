@@ -1,0 +1,79 @@
+[versions]
+agp = "8.11.0" # Updated to a recent stable version
+kotlin = "2.2.0"  # Matched to Compose Compiler 1.5.11 for broader compatibility, adjust if needed
+coreKtx = "1.16.0"
+junit = "4.13.2"
+junitVersion = "1.2.1"
+espressoCore = "3.6.1"
+appcompat = "1.7.1"
+material = "1.12.0" # Your version was fine
+
+# Compose
+composeBom = "2025.06.01" # Stable BOM compatible with Kotlin 2.0.0 and Compiler 1.5.11
+# For Kotlin 2.0.0, composeCompilerExtension is typically 1.5.11
+# If you stick strictly to Kotlin 2.0.21, you might need a newer BOM and compiler extension.
+# E.g., for Kotlin 2.0.0, use compose.compiler version 1.5.11. For Kotlin 2.0.20, use 1.5.13.
+# The BOM 2024.06.00 aligns with Compose Compiler 1.5.11 (Kotlin 2.0.0)
+
+activityCompose = "1.10.1"
+navigationCompose = "2.9.1" # Your version
+lifecycleViewmodelCompose = "2.9.1"
+
+# Google Mobile Ads
+playServicesAds = "24.4.0"
+
+# ZXing
+zxingCore = "3.5.3"
+
+# CameraX
+camerax = "1.4.2" # Updated to a recent stable version
+
+# ML Kit
+mlkitBarcodeScanning = "17.2.0" # Check for latest if needed, 17.3.0 had some issues for some users.
+
+[libraries]
+androidx-core-ktx = { group = "androidx.core", name = "core-ktx", version.ref = "coreKtx" }
+androidx-appcompat = { group = "androidx.appcompat", name = "appcompat", version.ref = "appcompat" }
+material = { group = "com.google.android.material", name = "material", version.ref = "material" }
+
+# Compose
+androidx-compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
+androidx-compose-ui = { group = "androidx.compose.ui", name = "ui" }
+androidx-compose-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
+androidx-compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
+androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3" }
+androidx-activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
+androidx-navigation-compose = { group = "androidx.navigation", name = "navigation-compose", version.ref = "navigationCompose" }
+androidx-lifecycle-viewmodel-compose = { group = "androidx.lifecycle", name = "lifecycle-viewmodel-compose", version.ref = "lifecycleViewmodelCompose"}
+
+# Google Mobile Ads
+google-play-services-ads = { group = "com.google.android.gms", name = "play-services-ads", version.ref = "playServicesAds" }
+
+# ZXing
+google-zxing-core = { group = "com.google.zxing", name = "core", version.ref = "zxingCore" }
+
+# CameraX
+androidx-camera-core = { group = "androidx.camera", name = "camera-core", version.ref = "camerax" }
+androidx-camera-camera2 = { group = "androidx.camera", name = "camera-camera2", version.ref = "camerax" }
+androidx-camera-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", version.ref = "camerax" }
+androidx-camera-view = { group = "androidx.camera", name = "camera-view", version.ref = "camerax" }
+
+# ML Kit
+google-mlkit-barcode-scanning = { group = "com.google.mlkit", name = "barcode-scanning", version.ref = "mlkitBarcodeScanning" }
+
+# Testing
+junit = { group = "junit", name = "junit", version.ref = "junit" }
+androidx-junit = { group = "androidx.test.ext", name = "junit", version.ref = "junitVersion" }
+androidx-espresso-core = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espressoCore" }
+androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" } # For Compose testing
+
+# Debugging
+androidx-compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
+androidx-compose-ui-test-manifest = { group = "androidx.compose.ui", name = "ui-test-manifest" }
+
+
+[plugins]
+android-application = { id = "com.android.application", version.ref = "agp" }
+kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+# Added Compose Compiler plugin, uses the same Kotlin version
+kotlin-compose-compiler = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
