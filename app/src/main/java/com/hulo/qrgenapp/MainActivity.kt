@@ -47,14 +47,11 @@ import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
 import com.hulo.qrgenapp.ui.theme.QRGenAppTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-
-// IMPORTANT: Use Google's TEST Ad Unit IDs for development and testing.
-// Replace these with your actual production IDs ONLY when your app is published.
-private const val BANNER_AD_UNIT_ID_TOP = "ca-app-pub-3940256099942544/6300978111" // Test Banner
-private const val BANNER_AD_UNIT_ID_BOTTOM = "ca-app-pub-3940256099942544/6300978111" // Test Banner
-private const val BANNER_AD_UNIT_ID_INLINE = "ca-app-pub-3940256099942544/6300978111" // Test Banner
-private const val INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-3940256099942544/1033173712" // Test Interstitial
-private const val REWARDED_AD_UNIT_ID = "ca-app-pub-3940256099942544/5224354917" // Test Rewarded
+private const val BANNER_AD_UNIT_ID_TOP = "ca-app-pub-3940256099942544/6300978111" // Google's Test Banner Ad Unit ID
+private const val BANNER_AD_UNIT_ID_BOTTOM = "ca-app-pub-3940256099942544/6300978111" // Google's Test Banner Ad Unit ID
+private const val BANNER_AD_UNIT_ID_INLINE = "ca-app-pub-3940256099942544/6300978111" // Google's Test Banner Ad Unit ID
+private const val INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-3940256099942544/1033173712" // Google's Test Interstitial Ad Unit ID
+private const val REWARDED_AD_UNIT_ID = "ca-app-pub-3940256099942544/5224354917" // Google's Test Rewarded Ad Unit ID
 private const val AD_LOG_TAG = "AdMob"
 
 class MainActivity : ComponentActivity() {
