@@ -28,46 +28,61 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.android.gms.ads.nativead.NativeAd
+
+// Ad Unit ID for banner ad on this screen
+private const val BANNER_AD_UNIT_ID_GAIN_COINS_SCREEN = "ca-app-pub-3940256099942544/6300978111" // Google's Test Banner Ad Unit ID
 
 @Composable
 fun GainCoinsScreen(
     coinBalance: Int,
     onShowRewardedAd: (onRewardEarned: (Int) -> Unit) -> Unit,
-    onNavigateToPremium: () -> Unit // New: Navigate to premium screen
+    onNavigateToPremium: () -> Unit, // New: Navigate to premium screen
+    nativeAd: NativeAd?, // New: Native Ad
+    showNativeAd: Boolean // New: Control native ad visibility
 ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(16.dp),
+            .padding(horizontal = 12.dp), // Overall smaller horizontal padding
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Top
     ) {
-        Spacer(modifier = Modifier.height(24.dp))
+        // Banner Ad at the top of the screen
+        if (showNativeAd) { // showNativeAd is true if not premium
+            BannerAd(
+                adUnitId = BANNER_AD_UNIT_ID_GAIN_COINS_SCREEN,
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(8.dp)) // Small spacer after ad
+        }
+
+        Spacer(modifier = Modifier.height(16.dp)) // Smaller top spacer
 
         Icon(
             imageVector = Icons.Default.MonetizationOn,
             contentDescription = "Coins",
-            modifier = Modifier.size(100.dp),
+            modifier = Modifier.size(80.dp), // Smaller icon
             tint = MaterialTheme.colorScheme.tertiary
         )
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp)) // Smaller spacer
         Text(
             text = "Earn More Coins!",
-            style = MaterialTheme.typography.headlineMedium,
+            style = MaterialTheme.typography.headlineSmall, // Smaller headline
             fontWeight = FontWeight.ExtraBold,
             color = MaterialTheme.colorScheme.onBackground,
             textAlign = TextAlign.Center
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(6.dp)) // Smaller spacer
         Text(
             text = "Coins allow you to generate QR codes. Here's how you can get more:",
-            style = MaterialTheme.typography.bodyLarge,
+            style = MaterialTheme.typography.bodyMedium, // Smaller text
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
-            modifier = Modifier.padding(horizontal = 16.dp)
+            modifier = Modifier.padding(horizontal = 12.dp) // Smaller horizontal padding
         )
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(24.dp)) // Smaller spacer
 
         // Ways to earn coins with updated styling
         CoinEarningMethodCard(
@@ -77,7 +92,7 @@ fun GainCoinsScreen(
             buttonText = "Watch Ad",
             onClick = { onShowRewardedAd { /* reward handled in MainActivity */ } }
         )
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp)) // Smaller spacer
         CoinEarningMethodCard(
             title = "Scan QR Codes",
             description = "Get +5 coins every time you successfully scan a QR code (requires internet).",
@@ -85,88 +100,96 @@ fun GainCoinsScreen(
             buttonText = "Go to Scanner",
             onClick = { /* Navigation to scanner will be handled by bottom nav bar */ }
         )
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(24.dp)) // Smaller spacer
 
         // Current Balance with enhanced visibility
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 4.dp), // Smaller horizontal padding
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer), // Primary container for balance
-            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f)), // Transparent feel
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(20.dp),
+                    .padding(16.dp), // Smaller padding
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.MonetizationOn,
                     contentDescription = "Current Balance",
-                    modifier = Modifier.size(32.dp),
+                    modifier = Modifier.size(28.dp), // Smaller icon
                     tint = MaterialTheme.colorScheme.onPrimaryContainer
                 )
-                Spacer(modifier = Modifier.width(8.dp))
+                Spacer(modifier = Modifier.width(6.dp)) // Smaller spacer
                 Text(
                     text = "Your Current Balance: $coinBalance Coins",
-                    style = MaterialTheme.typography.titleLarge,
+                    style = MaterialTheme.typography.titleMedium, // Smaller text
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onPrimaryContainer,
                     textAlign = TextAlign.Center
                 )
             }
         }
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp)) // Smaller spacer
+
+        // Native Ad Section
+        NativeAdViewComposable(
+            nativeAd = nativeAd,
+            showAd = showNativeAd
+        )
+        Spacer(modifier = Modifier.height(16.dp)) // Small spacer after ad
 
         // Premium Plan Section (moved from QRScan's PremiumFeaturesOverlay)
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 4.dp), // Smaller horizontal padding
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer),
-            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.9f)), // Transparent feel
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
             Column(
-                modifier = Modifier.padding(20.dp),
+                modifier = Modifier.padding(16.dp), // Smaller padding
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(10.dp) // Smaller spacing
             ) {
                 Icon(
                     imageVector = Icons.Default.Star,
                     contentDescription = "Premium Plan",
-                    modifier = Modifier.size(64.dp),
+                    modifier = Modifier.size(56.dp), // Smaller icon
                     tint = MaterialTheme.colorScheme.onTertiaryContainer
                 )
                 Text(
                     text = "Unlock Premium Features!",
-                    style = MaterialTheme.typography.headlineSmall,
+                    style = MaterialTheme.typography.titleLarge, // Smaller headline
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onTertiaryContainer,
                     textAlign = TextAlign.Center
                 )
                 Text(
                     text = "Go ad-free, get unlimited history, and more!",
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = MaterialTheme.typography.bodyMedium, // Smaller text
                     color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f),
                     textAlign = TextAlign.Center
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp)) // Smaller spacer
                 Button(
                     onClick = onNavigateToPremium,
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.9f)), // Transparent feel
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp) // Smaller padding
                 ) {
-                    Icon(Icons.Default.Diamond, contentDescription = "Buy Premium")
-                    Spacer(Modifier.width(8.dp))
-                    Text("Buy Premium with Diamonds")
+                    Icon(Icons.Default.Diamond, contentDescription = "Buy Premium", modifier = Modifier.size(18.dp)) // Smaller icon
+                    Spacer(Modifier.width(6.dp)) // Smaller spacer
+                    Text("Buy Premium with Diamonds", style = MaterialTheme.typography.labelLarge) // Smaller text
                 }
             }
         }
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp)) // Smaller bottom spacer
     }
 }
 
@@ -181,44 +204,45 @@ fun CoinEarningMethodCard(
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 16.dp)
+            .padding(horizontal = 4.dp) // Smaller horizontal padding
             .animateContentSize(animationSpec = spring(dampingRatio = Spring.DampingRatioLowBouncy, stiffness = Spring.StiffnessLow)), // Animation for size changes
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        shape = RoundedCornerShape(20.dp), // More rounded corners
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh) // Lighter surface color
+        shape = RoundedCornerShape(16.dp), // More rounded corners
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.9f)) // Transparent feel
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
+            modifier = Modifier.padding(16.dp), // Smaller padding
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Icon(
                 imageVector = icon,
                 contentDescription = null,
-                modifier = Modifier.size(64.dp),
+                modifier = Modifier.size(56.dp), // Smaller icon
                 tint = MaterialTheme.colorScheme.secondary // Secondary color for icons
             )
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp)) // Smaller spacer
             Text(
                 text = title,
-                style = MaterialTheme.typography.titleLarge,
+                style = MaterialTheme.typography.titleMedium, // Smaller title
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(6.dp)) // Smaller spacer
             Text(
                 text = description,
-                style = MaterialTheme.typography.bodyMedium,
+                style = MaterialTheme.typography.bodySmall, // Smaller text
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp)) // Smaller spacer
             Button(
                 onClick = onClick,
                 shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary) // Primary color for buttons
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.9f)), // Transparent feel
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp) // Smaller padding
             ) {
-                Text(buttonText)
+                Text(buttonText, style = MaterialTheme.typography.labelLarge) // Smaller text
             }
         }
     }

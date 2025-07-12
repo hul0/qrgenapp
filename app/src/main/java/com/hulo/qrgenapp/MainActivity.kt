@@ -5,6 +5,7 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -51,6 +52,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -81,9 +83,7 @@ import com.hulo.qrgenapp.ui.theme.QRGenAppTheme
 
 // IMPORTANT: Use Google's TEST Ad Unit IDs for development and testing.
 // Replace these with your actual production IDs ONLY when your app is published.
-private const val BANNER_AD_UNIT_ID_TOP = "ca-app-pub-3940256099942544/6300978111" // Google's Test Banner Ad Unit ID
-private const val BANNER_AD_UNIT_ID_BOTTOM = "ca-app-pub-3940256099942544/6300978111" // Google's Test Banner Ad Unit ID
-private const val BANNER_AD_UNIT_ID_INLINE = "ca-app-pub-3940256099942544/6300978111" // Google's Test Banner Ad Unit ID
+// Removed BANNER_AD_UNIT_ID_TOP and BANNER_AD_UNIT_ID_BOTTOM as banners will be placed per screen.
 private const val INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-3940256099942544/1033173712" // Google's Test Interstitial Ad Unit ID
 private const val REWARDED_AD_UNIT_ID = "ca-app-pub-3940256099942544/5224354917" // Google's Test Rewarded Ad Unit ID
 private const val NATIVE_AD_UNIT_ID = "ca-app-pub-3940256099942544/2247696110" // Google's Test Native Ad Unit ID
@@ -352,7 +352,7 @@ fun MainAppScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("QRWiz") },
+                title = { Text("QRWiz", style = MaterialTheme.typography.titleLarge) }, // Smaller title
                 navigationIcon = {
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
                     val currentRoute = navBackStackEntry?.destination?.route
@@ -360,31 +360,32 @@ fun MainAppScreen(
                         IconButton(onClick = { navController.navigateUp() }) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back"
+                                contentDescription = "Back",
+                                tint = MaterialTheme.colorScheme.onPrimaryContainer // Consistent tint
                             )
                         }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f), // Transparent feel
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 ),
                 actions = {
                     // Display coin balance
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(end = 4.dp)
+                        modifier = Modifier.padding(end = 8.dp) // Adjusted padding
                     ) {
                         Icon(
                             imageVector = Icons.Default.MonetizationOn,
                             contentDescription = "Coin Balance",
                             tint = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(20.dp) // Smaller icon
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = userUiState.coins.toString(),
-                            style = MaterialTheme.typography.titleMedium,
+                            style = MaterialTheme.typography.titleSmall, // Smaller text
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
@@ -392,18 +393,18 @@ fun MainAppScreen(
                     // Display diamond balance
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(end = 8.dp)
+                        modifier = Modifier.padding(end = 8.dp) // Adjusted padding
                     ) {
                         Icon(
                             imageVector = Icons.Default.Diamond,
                             contentDescription = "Diamond Balance",
                             tint = MaterialTheme.colorScheme.tertiary,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(20.dp) // Smaller icon
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = userUiState.diamonds.toString(),
-                            style = MaterialTheme.typography.titleMedium,
+                            style = MaterialTheme.typography.titleSmall, // Smaller text
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
@@ -411,7 +412,8 @@ fun MainAppScreen(
                     IconButton(onClick = onToggleTheme) {
                         Icon(
                             imageVector = Icons.Default.SettingsBrightness,
-                            contentDescription = "Toggle Dark Mode"
+                            contentDescription = "Toggle Dark Mode",
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer // Consistent tint
                         )
                     }
                 }
@@ -419,23 +421,17 @@ fun MainAppScreen(
         },
         bottomBar = {
             Column {
-                if (!isPremiumUser) { // Show bottom banner ad only if not premium
-                    BannerAd(
-                        adUnitId = BANNER_AD_UNIT_ID_BOTTOM,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-
+                // Banner Ad will now be handled within each screen composable
                 NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer
+                    containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.8f) // Transparent feel
                 ) {
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
                     val currentDestination = navBackStackEntry?.destination
 
                     navItems.forEach { screen ->
                         NavigationBarItem(
-                            icon = { Icon(screen.icon, contentDescription = screen.title) },
-                            label = { Text(screen.title) },
+                            icon = { Icon(screen.icon, contentDescription = screen.title, modifier = Modifier.size(24.dp)) }, // Smaller icons
+                            label = { Text(screen.title, style = MaterialTheme.typography.labelSmall) }, // Smaller labels
                             selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
                             onClick = {
                                 navController.navigate(screen.route) {
@@ -445,7 +441,14 @@ fun MainAppScreen(
                                     launchSingleTop = true
                                     restoreState = true
                                 }
-                            }
+                            },
+                            colors = androidx.compose.material3.NavigationBarItemDefaults.colors( // Use specific colors for selected/unselected
+                                selectedIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                selectedTextColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                indicatorColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f) // Transparent indicator
+                            )
                         )
                     }
                 }
@@ -457,13 +460,7 @@ fun MainAppScreen(
                 .padding(innerPadding)
                 .fillMaxSize()
         ) {
-            if (!isPremiumUser) { // Show top banner ad only if not premium
-                BannerAd(
-                    adUnitId = BANNER_AD_UNIT_ID_TOP,
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-
+            // No global banner ad here. Each screen will manage its own banner ad.
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -518,13 +515,17 @@ fun MainAppScreen(
                         GainCoinsScreen(
                             coinBalance = userUiState.coins,
                             onShowRewardedAd = onShowRewardedAd,
-                            onNavigateToPremium = { navController.navigate(Screen.Premium.route) } // Navigate to premium from here
+                            onNavigateToPremium = { navController.navigate(Screen.Premium.route) }, // Navigate to premium from here
+                            nativeAd = nativeAd, // Pass native ad
+                            showNativeAd = !isPremiumUser // Show native ad if not premium
                         )
                     }
                     composable(Screen.Redeem.route) {
                         RedeemCodeScreen(
                             userViewModel = userViewModel,
-                            showToast = { message -> context.showToast(message) }
+                            showToast = { message -> context.showToast(message) },
+                            nativeAd = nativeAd, // Pass native ad
+                            showNativeAd = !isPremiumUser // Show native ad if not premium
                         )
                     }
                     composable(Screen.History.route) {
@@ -532,16 +533,23 @@ fun MainAppScreen(
                             userViewModel = userViewModel,
                             onNavigateToPremium = { navController.navigate(Screen.Premium.route) }, // Navigate to premium from here
                             showToast = { message -> context.showToast(message) },
-                            onShowInterstitialAd = onShowInterstitialAd
+                            onShowInterstitialAd = onShowInterstitialAd,
+                            nativeAd = nativeAd, // Pass native ad
+                            showNativeAd = !isPremiumUser // Show native ad if not premium
                         )
                     }
                     composable(Screen.About.route) {
-                        AboutScreen()
+                        AboutScreen(
+                            nativeAd = nativeAd, // Pass native ad
+                            showNativeAd = !isPremiumUser // Show native ad if not premium
+                        )
                     }
                     composable(Screen.Premium.route) {
                         PremiumPlanScreen(
                             userViewModel = userViewModel,
-                            showToast = { message -> context.showToast(message) }
+                            showToast = { message -> context.showToast(message) },
+                            nativeAd = nativeAd, // Pass native ad
+                            showNativeAd = !isPremiumUser // Show native ad if not premium
                         )
                     }
                 }
@@ -558,7 +566,11 @@ fun BannerAd(
     val context = LocalContext.current
 
     AndroidView(
-        modifier = modifier,
+        modifier = modifier
+            .fillMaxWidth()
+            .height(50.dp) // Standard banner ad height
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.9f)) // Slightly transparent background
+            .padding(vertical = 4.dp), // Small padding
         factory = {
             AdView(context).apply {
                 setAdSize(
@@ -611,11 +623,11 @@ fun NativeAdViewComposable(
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .height(150.dp) // Adjust height as needed for your native ad layout
-            .padding(horizontal = 16.dp, vertical = 8.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest)
+            .height(120.dp) // Adjusted height for a smaller native ad
+            .padding(horizontal = 12.dp, vertical = 6.dp), // Smaller padding
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp), // Smaller elevation
+        shape = RoundedCornerShape(12.dp), // Slightly less rounded
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.9f)) // Transparent feel
     ) {
         Box(
             modifier = Modifier.fillMaxSize(),
@@ -625,18 +637,18 @@ fun NativeAdViewComposable(
                 Icon(
                     imageVector = Icons.Default.Star, // Placeholder icon
                     contentDescription = "Ad",
-                    modifier = Modifier.size(48.dp),
+                    modifier = Modifier.size(36.dp), // Smaller icon
                     tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp)) // Smaller spacer
                 Text(
                     text = "Native Ad Placeholder",
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleSmall, // Smaller text
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
                     text = nativeAd.headline ?: "Ad Loading...", // Example of using native ad data
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodySmall, // Smaller text
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -660,12 +672,12 @@ fun RewardedAdButton(
             }
         },
         modifier = modifier,
-        shape = RoundedCornerShape(12.dp),
-        border = ButtonDefaults.outlinedButtonBorder.copy(width = 2.dp)
+        shape = RoundedCornerShape(10.dp), // Slightly less rounded
+        border = ButtonDefaults.outlinedButtonBorder.copy(width = 1.dp) // Thinner border
     ) {
-        Text(text)
+        Text(text, style = MaterialTheme.typography.labelLarge) // Smaller text
         if (rewardEarned > 0) {
-            Text(" (Rewards: $rewardEarned)", color = MaterialTheme.colorScheme.primary)
+            Text(" (Rewards: $rewardEarned)", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
         }
     }
 }

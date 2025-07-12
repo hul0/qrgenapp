@@ -136,46 +136,6 @@ object QRGenerator {
     }
 }
 
-object QRDataProcessor {
-    enum class QRContentType {
-        TEXT,
-        URL,
-        EMAIL,
-        PHONE,
-        SMS,
-        WIFI,
-        VCARD,
-        UNKNOWN
-    }
-
-    data class ProcessedQRData(
-        val rawValue: String,
-        val type: QRContentType,
-        val processedValue: Any = rawValue
-    )
-
-    fun process(data: String): ProcessedQRData {
-        return when {
-            data.startsWith("http://") || data.startsWith("https://") ->
-                ProcessedQRData(data, QRContentType.URL)
-            data.startsWith("mailto:") ->
-                ProcessedQRData(data, QRContentType.EMAIL, data.substringAfter("mailto:"))
-            data.startsWith("tel:") ->
-                ProcessedQRData(data, QRContentType.PHONE, data.substringAfter("tel:"))
-            data.startsWith("smsto:") ->
-                ProcessedQRData(data, QRContentType.SMS, data.substringAfter("smsto:"))
-            data.startsWith("WIFI:") ->
-                ProcessedQRData(data, QRContentType.WIFI)
-            data.startsWith("BEGIN:VCARD") ->
-                ProcessedQRData(data, QRContentType.VCARD)
-            else -> ProcessedQRData(data, QRContentType.TEXT)
-        }
-    }
-}
-
-fun Context.showToast(message: String, duration: Int = Toast.LENGTH_SHORT) {
-    Toast.makeText(this, message, duration).show()
-}
 
 fun getErrorCorrectionLevels(): List<ErrorCorrectionLevel> {
     return ErrorCorrectionLevel.values().toList()

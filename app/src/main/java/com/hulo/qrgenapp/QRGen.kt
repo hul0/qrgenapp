@@ -75,6 +75,9 @@ import kotlinx.coroutines.launch
 import java.io.File
 import java.io.FileOutputStream
 
+// Ad Unit ID for banner ad on this screen
+private const val BANNER_AD_UNIT_ID_GENERATE_SCREEN = "ca-app-pub-3940256099942544/6300978111" // Google's Test Banner Ad Unit ID
+
 data class QRGenUiState(
     val inputText: TextFieldValue = TextFieldValue(""),
     val generatedBitmap: Bitmap? = null,
@@ -204,14 +207,24 @@ fun QRGenScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
-                .padding(16.dp)
+                .background(MaterialTheme.colorScheme.background) // Ensure background matches theme
+                .padding(12.dp) // Overall smaller padding
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            verticalArrangement = Arrangement.spacedBy(12.dp) // Smaller spacing
         ) {
+            // Banner Ad at the top of the screen
+            if (showNativeAd) { // showNativeAd is true if not premium
+                BannerAd(
+                    adUnitId = BANNER_AD_UNIT_ID_GENERATE_SCREEN,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(modifier = Modifier.height(8.dp)) // Small spacer after ad
+            }
+
             Text(
                 text = "QR Code Generator",
-                style = MaterialTheme.typography.headlineMedium,
+                style = MaterialTheme.typography.headlineSmall, // Smaller headline
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
             )
@@ -219,7 +232,7 @@ fun QRGenScreen(
             // Display current coin balance
             Text(
                 text = "Current Coins: $coinBalance",
-                style = MaterialTheme.typography.titleMedium,
+                style = MaterialTheme.typography.titleSmall, // Smaller text
                 color = MaterialTheme.colorScheme.secondary
             )
 
@@ -262,14 +275,14 @@ fun QRGenScreen(
 fun QRCodeDisplay(bitmap: Bitmap?, isGenerating: Boolean) {
     Box(
         modifier = Modifier
-            .size(280.dp)
-            .clip(RoundedCornerShape(20.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .border(2.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(20.dp)),
+            .size(240.dp) // Smaller display size
+            .clip(RoundedCornerShape(16.dp)) // Slightly less rounded
+            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)) // Transparent feel
+            .border(2.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.7f), RoundedCornerShape(16.dp)), // Transparent border
         contentAlignment = Alignment.Center
     ) {
         if (isGenerating) {
-            CircularProgressIndicator(modifier = Modifier.size(64.dp), strokeWidth = 6.dp)
+            CircularProgressIndicator(modifier = Modifier.size(56.dp), strokeWidth = 5.dp) // Smaller indicator
         } else if (bitmap != null) {
             Image(
                 bitmap = bitmap.asImageBitmap(),
@@ -277,20 +290,20 @@ fun QRCodeDisplay(bitmap: Bitmap?, isGenerating: Boolean) {
                 contentScale = ContentScale.Fit,
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(16.dp)
+                    .padding(12.dp) // Smaller padding
             )
         } else {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(
                     Icons.Default.QrCode,
                     contentDescription = "QR Code Placeholder",
-                    modifier = Modifier.size(80.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    modifier = Modifier.size(64.dp), // Smaller icon
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f) // More transparent
                 )
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(6.dp)) // Smaller spacer
                 Text(
                     text = "Your QR Code will appear here",
-                    style = MaterialTheme.typography.bodyLarge,
+                    style = MaterialTheme.typography.bodyMedium, // Smaller text
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -309,28 +322,28 @@ fun QRInputSection(
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.spacedBy(12.dp)
+        verticalArrangement = Arrangement.spacedBy(10.dp) // Smaller spacing
     ) {
         OutlinedTextField(
             value = textValue,
             onValueChange = onTextChanged,
-            label = { Text("Enter text or URL to encode") },
+            label = { Text("Enter text or URL to encode", style = MaterialTheme.typography.bodySmall) }, // Smaller label
             modifier = Modifier.fillMaxWidth(),
             singleLine = false,
-            maxLines = 5,
-            shape = RoundedCornerShape(12.dp),
-            leadingIcon = { Icon(Icons.Default.Info, contentDescription = "Input") }
+            maxLines = 4, // Reduced max lines
+            shape = RoundedCornerShape(10.dp), // Slightly less rounded
+            leadingIcon = { Icon(Icons.Default.Info, contentDescription = "Input", modifier = Modifier.size(20.dp)) } // Smaller icon
         )
         Button(
             onClick = onGenerateClick,
             modifier = Modifier
                 .fillMaxWidth()
-                .height(56.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
-            elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
+                .height(50.dp), // Smaller button height
+            shape = RoundedCornerShape(12.dp), // Slightly less rounded
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.9f)), // Transparent feel
+            elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp) // Smaller elevation
         ) {
-            Text("GENERATE QR CODE ($generationCost Coins)", style = MaterialTheme.typography.titleMedium)
+            Text("GENERATE QR CODE ($generationCost Coins)", style = MaterialTheme.typography.titleSmall) // Smaller text
         }
     }
 }
@@ -352,13 +365,13 @@ fun AdvancedOptions(
             value = getErrorCorrectionLevelName(selectedLevel),
             onValueChange = {},
             readOnly = true,
-            label = { Text("Error Correction Level") },
+            label = { Text("Error Correction Level", style = MaterialTheme.typography.bodySmall) }, // Smaller label
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            leadingIcon = { Icon(Icons.Default.Tune, contentDescription = "Settings") },
+            leadingIcon = { Icon(Icons.Default.Tune, contentDescription = "Settings", modifier = Modifier.size(20.dp)) }, // Smaller icon
             modifier = Modifier
                 .menuAnchor()
                 .fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp)
+            shape = RoundedCornerShape(10.dp) // Slightly less rounded
         )
         ExposedDropdownMenu(
             expanded = expanded,
@@ -366,7 +379,7 @@ fun AdvancedOptions(
         ) {
             levels.forEach { level ->
                 DropdownMenuItem(
-                    text = { Text("${getErrorCorrectionLevelName(level)} - Cost: ${QRGenerator.getGenerationCost(level)} Coins") },
+                    text = { Text("${getErrorCorrectionLevelName(level)} - Cost: ${QRGenerator.getGenerationCost(level)} Coins", style = MaterialTheme.typography.bodyMedium) }, // Smaller text
                     onClick = {
                         onLevelSelected(level)
                         expanded = false
@@ -385,7 +398,7 @@ fun ActionButtons(
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        horizontalArrangement = Arrangement.spacedBy(10.dp), // Smaller spacing
         verticalAlignment = Alignment.CenterVertically
     ) {
         Button(
@@ -393,14 +406,14 @@ fun ActionButtons(
             enabled = isEnabled,
             modifier = Modifier
                 .weight(1f)
-                .height(56.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
-            elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
+                .height(48.dp), // Smaller button height
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary.copy(alpha = 0.9f)), // Transparent feel
+            elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp) // Smaller elevation
         ) {
-            Icon(Icons.Default.Save, contentDescription = "Save")
-            Spacer(Modifier.width(8.dp))
-            Text("Save")
+            Icon(Icons.Default.Save, contentDescription = "Save", modifier = Modifier.size(20.dp)) // Smaller icon
+            Spacer(Modifier.width(6.dp)) // Smaller spacer
+            Text("Save", style = MaterialTheme.typography.titleSmall) // Smaller text
         }
 
         Button(
@@ -408,14 +421,14 @@ fun ActionButtons(
             enabled = isEnabled,
             modifier = Modifier
                 .weight(1f)
-                .height(56.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary),
-            elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
+                .height(48.dp), // Smaller button height
+            shape = RoundedCornerShape(12.dp),
+            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.9f)), // Transparent feel
+            elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp) // Smaller elevation
         ) {
-            Icon(Icons.Default.Share, contentDescription = "Share")
-            Spacer(Modifier.width(8.dp))
-            Text("Share")
+            Icon(Icons.Default.Share, contentDescription = "Share", modifier = Modifier.size(20.dp)) // Smaller icon
+            Spacer(Modifier.width(6.dp)) // Smaller spacer
+            Text("Share", style = MaterialTheme.typography.titleSmall) // Smaller text
         }
     }
 }
