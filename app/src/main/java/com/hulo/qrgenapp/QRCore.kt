@@ -124,6 +124,16 @@ object QRGenerator {
             }
         }
     }
+
+    // New function to get the cost of QR code generation based on error correction level
+    fun getGenerationCost(errorCorrectionLevel: ErrorCorrectionLevel): Int {
+        return when (errorCorrectionLevel) {
+            ErrorCorrectionLevel.L -> 10 // Low
+            ErrorCorrectionLevel.M -> 15 // Medium
+            ErrorCorrectionLevel.Q -> 25 // Quartile
+            ErrorCorrectionLevel.H -> 40 // High
+        }
+    }
 }
 
 object QRDataProcessor {

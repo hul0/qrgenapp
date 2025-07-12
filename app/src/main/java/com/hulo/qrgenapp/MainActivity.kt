@@ -11,17 +11,23 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Redeem
 import androidx.compose.material.icons.filled.Create
+import androidx.compose.material.icons.filled.Diamond
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.SettingsBrightness
+import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -53,6 +59,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
+import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -67,6 +74,8 @@ import com.google.android.gms.ads.LoadAdError
 import com.google.android.gms.ads.MobileAds
 import com.google.android.gms.ads.interstitial.InterstitialAd
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
+import com.google.android.gms.ads.nativead.NativeAd
+import com.google.android.gms.ads.nativead.NativeAdOptions
 import com.google.android.gms.ads.rewarded.RewardedAd
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
 import com.hulo.qrgenapp.ui.theme.QRGenAppTheme
@@ -79,6 +88,7 @@ private const val BANNER_AD_UNIT_ID_BOTTOM = "ca-app-pub-3940256099942544/630097
 private const val BANNER_AD_UNIT_ID_INLINE = "ca-app-pub-3940256099942544/6300978111" // Google's Test Banner Ad Unit ID
 private const val INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-3940256099942544/1033173712" // Google's Test Interstitial Ad Unit ID
 private const val REWARDED_AD_UNIT_ID = "ca-app-pub-3940256099942544/5224354917" // Google's Test Rewarded Ad Unit ID
+private const val NATIVE_AD_UNIT_ID = "ca-app-pub-3940256099942544/2247696110" // Google's Test Native Ad Unit ID
 private const val AD_LOG_TAG = "AdMob"
 
 class MainActivity : ComponentActivity() {
@@ -89,15 +99,17 @@ class MainActivity : ComponentActivity() {
 
     private var mInterstitialAd: InterstitialAd? = null
     private var mRewardedAd: RewardedAd? = null
+    private var mNativeAd: NativeAd? = null // New: Native Ad instance
 
     // Declared userActionCount here
     private var userActionCount = 0
     private var lastInterstitialTime = 0L
-    private val minInterstitialInterval = 20000L // 30 seconds minimum between interstitials
-    private val actionsBeforeInterstitial = 2 // Show interstitial after 1 user action (generating/scanning)
+    private val minInterstitialInterval = 20000L // 20 seconds minimum between interstitials
+    private val actionsBeforeInterstitial = 2 // Show interstitial after 2 user actions (generating/scanning)
 
     private var isInterstitialLoading = false
     private var isRewardedLoading = false
+    private var isNativeAdLoading = false // New: Native ad loading state
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -110,10 +122,12 @@ class MainActivity : ComponentActivity() {
             Log.d(AD_LOG_TAG, "Mobile Ads SDK Initialized: $initializationStatus")
             loadInterstitialAd()
             loadRewardedAd()
+            loadNativeAd() // Load native ad on app start
         }
 
         setContent {
             var darkTheme by remember { mutableStateOf(false) } // State for dark mode toggle
+            val userUiState by userViewModel.uiState.collectAsState() // Observe premium status
 
             QRGenAppTheme(darkTheme = darkTheme) { // Apply the custom theme
                 Surface(
@@ -125,13 +139,17 @@ class MainActivity : ComponentActivity() {
                         qrScanViewModel = qrScanViewModel,
                         userViewModel = userViewModel, // Pass UserViewModel
                         onShowInterstitialAd = {
-                            // Increment userActionCount here as this is a user interaction point
-                            userActionCount++
-                            showInterstitialAdSmart()
+                            // Only show interstitial if not premium
+                            if (!userUiState.isPremium) {
+                                userActionCount++
+                                showInterstitialAdSmart()
+                            }
                         },
                         onShowRewardedAd = ::showRewardedAd,
                         darkTheme = darkTheme,
-                        onToggleTheme = { darkTheme = !darkTheme } // Pass toggle function
+                        onToggleTheme = { darkTheme = !darkTheme }, // Pass toggle function
+                        nativeAd = mNativeAd, // Pass native ad to composable
+                        isPremiumUser = userUiState.isPremium // Pass premium status
                     )
                 }
             }
@@ -193,8 +211,8 @@ class MainActivity : ComponentActivity() {
 
         if (userActionCount >= actionsBeforeInterstitial &&
             timeSinceLastAd >= minInterstitialInterval &&
-            mInterstitialAd != null) {
-
+            mInterstitialAd != null
+        ) {
             mInterstitialAd?.show(this)
         } else {
             Log.d(AD_LOG_TAG, "Interstitial ad not ready. Actions: $userActionCount, Time since last ad: ${timeSinceLastAd / 1000}s. Loading status: ${if (isInterstitialLoading) "Loading" else "Not loading"}")
@@ -265,52 +283,99 @@ class MainActivity : ComponentActivity() {
             }
         }
     }
+
+    private fun loadNativeAd() {
+        if (isNativeAdLoading || mNativeAd != null) return
+
+        isNativeAdLoading = true
+        val adLoader = com.google.android.gms.ads.AdLoader.Builder(this, NATIVE_AD_UNIT_ID)
+            .forNativeAd { nativeAd ->
+                Log.d(AD_LOG_TAG, "Native ad loaded successfully.")
+                mNativeAd = nativeAd
+                isNativeAdLoading = false
+            }
+            .withAdListener(object : AdListener() {
+                override fun onAdFailedToLoad(adError: LoadAdError) {
+                    Log.e(AD_LOG_TAG, "Native ad failed to load: ${adError.message} (Code: ${adError.code})")
+                    mNativeAd = null
+                    isNativeAdLoading = false
+                }
+
+                override fun onAdLoaded() {
+                    Log.d(AD_LOG_TAG, "Native ad loaded.")
+                }
+
+                override fun onAdClicked() {
+                    Log.d(AD_LOG_TAG, "Native ad clicked.")
+                }
+            })
+            .withNativeAdOptions(NativeAdOptions.Builder().build())
+            .build()
+
+        adLoader.loadAd(AdRequest.Builder().build())
+    }
+
+    override fun onDestroy() {
+        mNativeAd?.destroy()
+        super.onDestroy()
+    }
 }
 
 sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
     object Home : Screen("home", "Home", Icons.Default.Home)
     object Generate : Screen("generate", "Generate", Icons.Default.Create)
     object Scan : Screen("scan", "Scan", Icons.Default.QrCodeScanner)
-    object GainCoins : Screen("gain_coins", "Coins", Icons.Default.MonetizationOn) // New screen for gaining coins
+    object GainCoins : Screen("gain_coins", "Coins", Icons.Default.MonetizationOn)
+    object Redeem : Screen("redeem", "Redeem", Icons.AutoMirrored.Filled.Redeem) // New screen for redeeming codes
+    object History : Screen("history", "History", Icons.Default.History) // New screen for history
     object About : Screen("about", "About", Icons.Default.Info)
+    object Premium : Screen("premium", "Premium", Icons.Default.Star) // New screen for premium purchase
 }
 
-val navItems = listOf(Screen.Home, Screen.Generate, Screen.Scan, Screen.GainCoins, Screen.About)
+val navItems = listOf(Screen.Home, Screen.Generate, Screen.Scan, Screen.GainCoins, Screen.Redeem, Screen.History, Screen.About)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainAppScreen(
     qrGenViewModel: QRGenViewModel,
     qrScanViewModel: QRScanViewModel,
-    userViewModel: UserViewModel, // UserViewModel parameter
-    onShowInterstitialAd: () -> Unit, // This lambda now handles the userActionCount increment
+    userViewModel: UserViewModel,
+    onShowInterstitialAd: () -> Unit,
     onShowRewardedAd: (onRewardEarned: (Int) -> Unit) -> Unit,
     darkTheme: Boolean,
-    onToggleTheme: () -> Unit
+    onToggleTheme: () -> Unit,
+    nativeAd: NativeAd?, // Pass native ad
+    isPremiumUser: Boolean // Pass premium status
 ) {
     val navController = rememberNavController()
-    var showInlineAd by remember { mutableStateOf(false) }
-    val userUiState by userViewModel.uiState.collectAsState() // Collect user UI state
-    val context = LocalContext.current // Get context to show toasts
-
-    LaunchedEffect(Unit) {
-        delay(10000)
-        showInlineAd = true
-    }
+    val userUiState by userViewModel.uiState.collectAsState()
+    val context = LocalContext.current
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("QRWiz") },
+                navigationIcon = {
+                    val navBackStackEntry by navController.currentBackStackEntryAsState()
+                    val currentRoute = navBackStackEntry?.destination?.route
+                    if (currentRoute != Screen.Home.route) { // Show back button on all screens except Home
+                        IconButton(onClick = { navController.navigateUp() }) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back"
+                            )
+                        }
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.secondary,
-                    titleContentColor = MaterialTheme.colorScheme.primary
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
+                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 ),
                 actions = {
-                    // Display coin balance in the top bar
+                    // Display coin balance
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(end = 8.dp)
+                        modifier = Modifier.padding(end = 4.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.MonetizationOn,
@@ -321,6 +386,25 @@ fun MainAppScreen(
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = userUiState.coins.toString(),
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                    // Display diamond balance
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.padding(end = 8.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Diamond,
+                            contentDescription = "Diamond Balance",
+                            tint = MaterialTheme.colorScheme.tertiary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = userUiState.diamonds.toString(),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -337,10 +421,12 @@ fun MainAppScreen(
         },
         bottomBar = {
             Column {
-                BannerAd(
-                    adUnitId = BANNER_AD_UNIT_ID_BOTTOM,
-                    modifier = Modifier.fillMaxWidth()
-                )
+                if (!isPremiumUser) { // Show bottom banner ad only if not premium
+                    BannerAd(
+                        adUnitId = BANNER_AD_UNIT_ID_BOTTOM,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
 
                 NavigationBar(
                     containerColor = MaterialTheme.colorScheme.surfaceContainer
@@ -373,10 +459,12 @@ fun MainAppScreen(
                 .padding(innerPadding)
                 .fillMaxSize()
         ) {
-            BannerAd(
-                adUnitId = BANNER_AD_UNIT_ID_TOP,
-                modifier = Modifier.fillMaxWidth()
-            )
+            if (!isPremiumUser) { // Show top banner ad only if not premium
+                BannerAd(
+                    adUnitId = BANNER_AD_UNIT_ID_TOP,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
 
             Box(
                 modifier = Modifier
@@ -385,25 +473,33 @@ fun MainAppScreen(
             ) {
                 NavHost(
                     navController = navController,
-                    startDestination = Screen.Home.route, // Set Home as the start destination
+                    startDestination = Screen.Home.route,
                     modifier = Modifier.fillMaxSize()
                 ) {
                     composable(Screen.Home.route) {
                         HomeScreen(
-                            coinBalance = userUiState.coins, // Pass coin balance
+                            coinBalance = userUiState.coins,
+                            diamondBalance = userUiState.diamonds, // Pass diamond balance
+                            isPremiumUser = isPremiumUser, // Pass premium status
                             onNavigateToGenerate = { navController.navigate(Screen.Generate.route) },
                             onNavigateToScan = { navController.navigate(Screen.Scan.route) },
-                            onNavigateToGainCoins = { navController.navigate(Screen.GainCoins.route) } // Navigate to gain coins screen
+                            onNavigateToGainCoins = { navController.navigate(Screen.GainCoins.route) },
+                            onNavigateToRedeem = { navController.navigate(Screen.Redeem.route) }, // Navigate to redeem screen
+                            onNavigateToHistory = { navController.navigate(Screen.History.route) }, // Navigate to history screen
+                            onNavigateToPremium = { navController.navigate(Screen.Premium.route) }, // Navigate to premium screen
+                            nativeAd = nativeAd, // Pass native ad
+                            showNativeAd = !isPremiumUser // Show native ad if not premium
                         )
                     }
                     composable(Screen.Generate.route) {
                         QRGenScreen(
                             viewModel = qrGenViewModel,
-                            coinBalance = userUiState.coins, // Pass coin balance
-                            onDeductCoins = userViewModel::deductCoins, // Pass deduct coins function
-                            onShowInterstitialAd = onShowInterstitialAd, // This now includes userActionCount++
-                            showInlineAd = showInlineAd,
-                            showToast = { message -> context.showToast(message) } // Pass Android Context's showToast
+                            coinBalance = userUiState.coins,
+                            onDeductCoins = userViewModel::deductCoins,
+                            onShowInterstitialAd = onShowInterstitialAd,
+                            showToast = { message -> context.showToast(message) },
+                            nativeAd = nativeAd, // Pass native ad
+                            showNativeAd = !isPremiumUser // Show native ad if not premium
                         )
                     }
                     composable(Screen.Scan.route) {
@@ -412,18 +508,42 @@ fun MainAppScreen(
                             onAddCoins = { amount ->
                                 userViewModel.addCoins(amount)
                             },
-                            onShowInterstitialAd = onShowInterstitialAd, // This now includes userActionCount++
-                            showInlineAd = showInlineAd
+                            onAddScanToHistory = userViewModel::addScanToHistory, // Pass history function
+                            onShowInterstitialAd = onShowInterstitialAd,
+                            isPremiumUser = isPremiumUser, // Pass premium status
+                            showToast = { message -> context.showToast(message) },
+                            nativeAd = nativeAd, // Pass native ad
+                            showNativeAd = !isPremiumUser // Show native ad if not premium
                         )
                     }
                     composable(Screen.GainCoins.route) {
                         GainCoinsScreen(
                             coinBalance = userUiState.coins,
-                            onShowRewardedAd = onShowRewardedAd // Rewarded ad only shown here
+                            onShowRewardedAd = onShowRewardedAd,
+                            onNavigateToPremium = { navController.navigate(Screen.Premium.route) } // Navigate to premium from here
+                        )
+                    }
+                    composable(Screen.Redeem.route) {
+                        RedeemCodeScreen(
+                            userViewModel = userViewModel,
+                            showToast = { message -> context.showToast(message) }
+                        )
+                    }
+                    composable(Screen.History.route) {
+                        HistoryScreen(
+                            userViewModel = userViewModel,
+                            onNavigateToPremium = { navController.navigate(Screen.Premium.route) }, // Navigate to premium from here
+                            showToast = { message -> context.showToast(message) }
                         )
                     }
                     composable(Screen.About.route) {
                         AboutScreen()
+                    }
+                    composable(Screen.Premium.route) {
+                        PremiumPlanScreen(
+                            userViewModel = userViewModel,
+                            showToast = { message -> context.showToast(message) }
+                        )
                     }
                 }
             }
@@ -474,27 +594,57 @@ fun BannerAd(
 }
 
 @Composable
-fun InlineBannerAd(
+fun NativeAdViewComposable(
+    nativeAd: NativeAd?,
     modifier: Modifier = Modifier,
-    isVisible: Boolean = true
+    showAd: Boolean = true
 ) {
-    if (isVisible) {
-        Card(
-            modifier = modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-            shape = RoundedCornerShape(12.dp)
+    if (!showAd || nativeAd == null) {
+        Spacer(modifier = Modifier.height(0.dp)) // Return empty space if ad not shown or null
+        return
+    }
+
+    // This is a placeholder for a Native Ad.
+    // Integrating actual NativeAdView in Compose requires an AndroidView and setting up the view hierarchy
+    // to display the ad assets (headline, body, image, etc.).
+    // For simplicity, this composable just shows a card with a placeholder text.
+    // You would replace this with your actual NativeAdView implementation.
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(150.dp) // Adjust height as needed for your native ad layout
+            .padding(horizontal = 16.dp, vertical = 8.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest)
+    ) {
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
         ) {
-            BannerAd(
-                adUnitId = BANNER_AD_UNIT_ID_INLINE,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(4.dp)
-            )
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(
+                    imageVector = Icons.Default.Star, // Placeholder icon
+                    contentDescription = "Ad",
+                    modifier = Modifier.size(48.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "Native Ad Placeholder",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = nativeAd.headline ?: "Ad Loading...", // Example of using native ad data
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
     }
 }
+
 
 @Composable
 fun RewardedAdButton(

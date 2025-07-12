@@ -39,8 +39,10 @@ fun AboutScreen() {
         Text(
             text = "About QR Code Scanner & Generator - QRWiz", // Updated app name
             style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground
+            fontWeight = FontWeight.ExtraBold,
+            color = MaterialTheme.colorScheme.onBackground,
+            textAlign = TextAlign.Center, // Centered for better presentation
+            modifier = Modifier.padding(horizontal = 16.dp)
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
@@ -54,8 +56,9 @@ fun AboutScreen() {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(horizontal = 8.dp),
-            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-            shape = RoundedCornerShape(12.dp)
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp), // Slightly increased elevation
+            shape = RoundedCornerShape(16.dp), // More rounded corners
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh) // Lighter surface color
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Text(
@@ -128,7 +131,7 @@ fun BulletPointText(text: String) {
             text = "•",
             modifier = Modifier.padding(end = 8.dp),
             style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.primary
+            color = MaterialTheme.colorScheme.primary // Bullet point in primary color
         )
         Text(
             text = text,
