@@ -6,6 +6,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,19 +18,24 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CardGiftcard
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Create
 import androidx.compose.material.icons.filled.Diamond
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.SettingsBrightness
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.ThumbUp
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -45,6 +52,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -52,6 +60,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -80,6 +91,7 @@ import com.google.android.gms.ads.nativead.NativeAdOptions
 import com.google.android.gms.ads.rewarded.RewardedAd
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
 import com.hulo.qrgenapp.ui.theme.QRGenAppTheme
+import kotlinx.coroutines.delay
 
 // IMPORTANT: Use Google's TEST Ad Unit IDs for development and testing.
 // Replace these with your actual production IDs ONLY when your app is published.
@@ -102,8 +114,8 @@ class MainActivity : ComponentActivity() {
     // Declared userActionCount here
     private var userActionCount = 0
     private var lastInterstitialTime = 0L
-    private val minInterstitialInterval = 20000L // 20 seconds minimum between interstitials
-    private val actionsBeforeInterstitial = 2 // Show interstitial after 2 user actions (generating/scanning)
+    private val minInterstitialInterval = 5000L // 10 seconds minimum between interstitials
+    private val actionsBeforeInterstitial = 0 // Show interstitial after 2 user actions (generating/scanning)
 
     private var isInterstitialLoading = false
     private var isRewardedLoading = false
@@ -398,7 +410,7 @@ fun MainAppScreen(
                         Icon(
                             imageVector = Icons.Default.Diamond,
                             contentDescription = "Diamond Balance",
-                            tint = MaterialTheme.colorScheme.tertiary,
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
                             modifier = Modifier.size(20.dp) // Smaller icon
                         )
                         Spacer(modifier = Modifier.width(4.dp))
@@ -411,7 +423,7 @@ fun MainAppScreen(
                     }
                     IconButton(onClick = onToggleTheme) {
                         Icon(
-                            imageVector = Icons.Default.SettingsBrightness,
+                            imageVector = Icons.Default.LightMode,
                             contentDescription = "Toggle Dark Mode",
                             tint = MaterialTheme.colorScheme.onPrimaryContainer // Consistent tint
                         )
@@ -611,51 +623,245 @@ fun NativeAdViewComposable(
     showAd: Boolean = true
 ) {
     if (!showAd || nativeAd == null) {
-        Spacer(modifier = Modifier.height(0.dp)) // Return empty space if ad not shown or null
+        Spacer(modifier = Modifier.height(0.dp))
         return
     }
 
-    // This is a placeholder for a Native Ad.
-    // Integrating actual NativeAdView in Compose requires an AndroidView and setting up the view hierarchy
-    // to display the ad assets (headline, body, image, etc.).
-    // For simplicity, this composable just shows a card with a placeholder text.
-    // You would replace this with your actual NativeAdView implementation.
+    var isPressed by remember { mutableStateOf(false) }
+    var timeLeft by remember { mutableStateOf(27) } // Fake countdown
+
+    // Fake countdown timer to create urgency
+    LaunchedEffect(Unit) {
+        while (timeLeft > 0) {
+            delay(1000)
+            timeLeft--
+            if (timeLeft == 0) timeLeft = 27 // Reset to keep the illusion
+        }
+    }
+
     Card(
         modifier = modifier
             .fillMaxWidth()
-            .height(120.dp) // Adjusted height for a smaller native ad
-            .padding(horizontal = 12.dp, vertical = 6.dp), // Smaller padding
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp), // Smaller elevation
-        shape = RoundedCornerShape(12.dp), // Slightly less rounded
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.9f)) // Transparent feel
+            .padding(horizontal = 8.dp, vertical = 4.dp)
+            .scale(if (isPressed) 0.98f else 1f)
+            .clickable { isPressed = !isPressed },
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = Color(0xFF1a1a1a) // Dark, premium feel
+        )
     ) {
         Box(
-            modifier = Modifier.fillMaxSize(),
-            contentAlignment = Alignment.Center
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    brush = Brush.linearGradient(
+                        colors = listOf(
+                            Color(0xFF2a2a2a),
+                            Color(0xFF1a1a1a),
+                            Color(0xFF0a0a0a)
+                        ),
+                        start = Offset(0f, 0f),
+                        end = Offset(1000f, 1000f)
+                    )
+                )
         ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Icon(
-                    imageVector = Icons.Default.Star, // Placeholder icon
-                    contentDescription = "Ad",
-                    modifier = Modifier.size(36.dp), // Smaller icon
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(6.dp)) // Smaller spacer
+            // Fake "LIVE" indicator
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .padding(12.dp)
+                    .background(
+                        Color.Red,
+                        shape = RoundedCornerShape(4.dp)
+                    )
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
                 Text(
-                    text = "Native Ad Placeholder",
-                    style = MaterialTheme.typography.titleSmall, // Smaller text
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = nativeAd.headline ?: "Ad Loading...", // Example of using native ad data
-                    style = MaterialTheme.typography.bodySmall, // Smaller text
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    text = "🔴 LIVE",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
                 )
             }
+
+            // Fake "limited time" badge
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(12.dp)
+                    .background(
+                        Color(0xFFFF6B35),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    .padding(horizontal = 8.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = "⏰ ${timeLeft}s left",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Fake profile image that looks like a person
+                Box(
+                    modifier = Modifier
+                        .size(60.dp)
+                        .background(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    Color(0xFF4CAF50),
+                                    Color(0xFF2E7D32)
+                                )
+                            ),
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "👤",
+                        style = MaterialTheme.typography.headlineMedium,
+                        color = Color.White
+                    )
+
+                    // Fake "online" indicator
+                    Box(
+                        modifier = Modifier
+                            .size(16.dp)
+                            .background(Color.Green, CircleShape)
+                            .align(Alignment.BottomEnd)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(12.dp))
+
+                Column(
+                    modifier = Modifier.weight(1f)
+                ) {
+                    // Fake social proof
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        repeat(5) {
+                            Icon(
+                                imageVector = Icons.Default.Star,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = Color(0xFFFFC107)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = "4.9 • 2.3M users",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color.White.copy(alpha = 0.8f)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(4.dp))
+
+                    // Clickbait headline
+                    Text(
+                        text = nativeAd.headline ?: "This SECRET trick doctors don't want you to know!",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                    )
+
+                    Spacer(modifier = Modifier.height(2.dp))
+
+                    // Manipulative subtitle
+                    Text(
+                        text = nativeAd.body ?: "Local mom discovers one weird trick...",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.White.copy(alpha = 0.9f),
+                        maxLines = 1,
+                    )
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    // Fake engagement metrics
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.ThumbUp,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = Color(0xFF4CAF50)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "47K",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.White.copy(alpha = 0.8f)
+                            )
+                        }
+
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Share,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp),
+                                tint = Color(0xFF2196F3)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "12K",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = Color.White.copy(alpha = 0.8f)
+                            )
+                        }
+
+                        Text(
+                            text = "👀 8.2K watching",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = Color(0xFFFF6B35)
+                        )
+                    }
+                }
+
+                // Fake "Close" button that's actually clickable
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .background(
+                            Color.White.copy(alpha = 0.1f),
+                            shape = CircleShape
+                        )
+                        .clickable { /* This makes people click thinking they're closing */ },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Close,
+                        contentDescription = "Close",
+                        modifier = Modifier.size(16.dp),
+                        tint = Color.White.copy(alpha = 0.6f)
+                    )
+                }
+            }
+
+            // Fake "Sponsored" label (legally required but made tiny)
+            Text(
+                text = "Sponsored",
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.White.copy(alpha = 0.4f),
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .padding(8.dp)
+            )
         }
     }
 }
-
 
 @Composable
 fun RewardedAdButton(

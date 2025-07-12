@@ -62,6 +62,217 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.concurrent.Executors
 import androidx.camera.core.Preview as CameraPreviewUseCase
+import androidx.core.net.toUri
+
+import android.util.Patterns // For URL and Email validation
+
+object QRDataProcessor {
+
+    enum class QRContentType {
+        URL,
+        TEXT,
+        WIFI,
+        CONTACT_INFO, // VCARD
+        EMAIL,
+        PHONE,
+        SMS,
+        GEO_LOCATION,
+        CALENDAR_EVENT, // VEVENT
+        APP_DEEP_LINK, // Custom scheme or known app schemes
+        UNKNOWN
+    }
+
+    data class ProcessedQRData(
+        val rawValue: String,
+        val type: QRContentType,
+        val data: Map<String, String> = emptyMap() // Optional: Store parsed data fields
+    )
+
+    fun process(rawValue: String): ProcessedQRData {
+        if (rawValue.isBlank()) {
+            return ProcessedQRData(rawValue, QRContentType.TEXT) // Or UNKNOWN if preferred
+        }
+
+        // --- URL ---
+        // More robust URL check using Android's Patterns
+        if (Patterns.WEB_URL.matcher(rawValue).matches() ||
+            rawValue.startsWith("http://", ignoreCase = true) ||
+            rawValue.startsWith("https://", ignoreCase = true) ||
+            rawValue.matches(Regex("^[a-zA-Z0-9]+([-.][a-zA-Z0-9]+)*\\.[a-zA-Z]{2,}(:[0-9]{1,5})?(/.*)?$"))) { // Basic domain check
+            return ProcessedQRData(rawValue, QRContentType.URL)
+        }
+
+        // --- WIFI ---
+        // Format: WIFI:S:<SSID>;T:<WPA|WEP|nopass>;P:<PASSWORD>;H:<true|false|>;;
+        if (rawValue.startsWith("WIFI:", ignoreCase = true)) {
+            val params = parseKeyValueString(rawValue.substringAfter("WIFI:"), ';', ':')
+            return ProcessedQRData(rawValue, QRContentType.WIFI, params)
+        }
+
+        // --- Contact Info (VCARD) ---
+        // Simple check, VCARDs can be complex
+        if (rawValue.startsWith("BEGIN:VCARD", ignoreCase = true)) {
+            // Basic parsing, can be expanded significantly
+            val vcardData = mutableMapOf<String, String>()
+            rawValue.lines().forEach { line ->
+                if (line.contains(":")) {
+                    val parts = line.split(":", limit = 2)
+                    val key = parts[0].substringAfterLast(';').trim() // Handle potential parameters like N;CHARSET=UTF-8
+                    val value = parts[1].trim()
+                    when {
+                        key.equals("FN", ignoreCase = true) -> vcardData["fullName"] = value
+                        key.equals("N", ignoreCase = true) -> {
+                            val nameParts = value.split(';')
+                            vcardData["lastName"] = nameParts.getOrElse(0) { "" }
+                            vcardData["firstName"] = nameParts.getOrElse(1) { "" }
+                        }
+                        key.startsWith("TEL", ignoreCase = true) -> vcardData["phone"] = value
+                        key.startsWith("EMAIL", ignoreCase = true) -> vcardData["email"] = value
+                        key.startsWith("ORG", ignoreCase = true) -> vcardData["organization"] = value
+                        key.startsWith("TITLE", ignoreCase = true) -> vcardData["title"] = value
+                        key.startsWith("ADR", ignoreCase = true) -> vcardData["address"] = value.replace(";", ", ")
+                        key.startsWith("URL", ignoreCase = true) -> vcardData["website"] = value
+                    }
+                }
+            }
+            return ProcessedQRData(rawValue, QRContentType.CONTACT_INFO, vcardData)
+        }
+
+        // --- Email ---
+        // mailto:someone@example.com?subject=Subject&body=BodyText
+        if (rawValue.startsWith("mailto:", ignoreCase = true)) {
+            val emailData = mutableMapOf<String, String>()
+            val mainPart = rawValue.substringAfter("mailto:")
+            val parts = mainPart.split("?", limit = 2)
+            emailData["to"] = parts[0]
+            if (parts.size > 1) {
+                val queryParams = parts[1].split('&')
+                queryParams.forEach { param ->
+                    val keyValue = param.split('=', limit = 2)
+                    if (keyValue.size == 2) {
+                        emailData[keyValue[0].lowercase()] = keyValue[1] // .URLDecoder.decode(keyValue[1], "UTF-8") if needed
+                    }
+                }
+            }
+            return ProcessedQRData(rawValue, QRContentType.EMAIL, emailData)
+        }
+        // Basic email regex as a fallback if not mailto:
+        if (Patterns.EMAIL_ADDRESS.matcher(rawValue).matches()) {
+            return ProcessedQRData(rawValue, QRContentType.EMAIL, mapOf("to" to rawValue))
+        }
+
+        // --- Phone Number ---
+        // tel:<phone_number>
+        if (rawValue.startsWith("tel:", ignoreCase = true)) {
+            return ProcessedQRData(rawValue, QRContentType.PHONE, mapOf("number" to rawValue.substringAfter("tel:")))
+        }
+        // Basic phone number regex (very simplified, adapt for your needs)
+        if (rawValue.matches(Regex("^\\+?[0-9\\s\\-()]{7,}$"))) {
+            return ProcessedQRData(rawValue, QRContentType.PHONE, mapOf("number" to rawValue))
+        }
+
+
+        // --- SMS ---
+        // smsto:<number>:<message> or sms:<number>?body=<message>
+        if (rawValue.startsWith("smsto:", ignoreCase = true) || rawValue.startsWith("sms:", ignoreCase = true)) {
+            val smsData = mutableMapOf<String, String>()
+            val prefix = if (rawValue.startsWith("smsto:", ignoreCase = true)) "smsto:" else "sms:"
+            var content = rawValue.substringAfter(prefix)
+
+            if (content.contains("?body=")) { // For sms:number?body=message format
+                val parts = content.split("?body=", limit = 2)
+                smsData["number"] = parts[0]
+                if (parts.size > 1) smsData["message"] = parts[1] // URLDecoder.decode(parts[1], "UTF-8") if needed
+            } else { // For smsto:number:message format
+                val parts = content.split(":", limit = 2)
+                smsData["number"] = parts[0]
+                if (parts.size > 1) smsData["message"] = parts[1]
+            }
+            return ProcessedQRData(rawValue, QRContentType.SMS, smsData)
+        }
+
+        // --- Geo Location ---
+        // geo:<latitude>,<longitude>?q=<query>
+        if (rawValue.startsWith("geo:", ignoreCase = true)) {
+            val geoData = mutableMapOf<String, String>()
+            val content = rawValue.substringAfter("geo:")
+            val parts = content.split("?q=", limit = 2)
+            val latLng = parts[0].split(',')
+            if (latLng.size == 2) {
+                geoData["latitude"] = latLng[0]
+                geoData["longitude"] = latLng[1]
+            }
+            if (parts.size > 1) {
+                geoData["query"] = parts[1]
+            }
+            return ProcessedQRData(rawValue, QRContentType.GEO_LOCATION, geoData)
+        }
+
+        // --- Calendar Event (VEVENT) ---
+        // Simple check, VEVENTs can be complex
+        if (rawValue.startsWith("BEGIN:VEVENT", ignoreCase = true)) {
+            // Basic parsing, can be expanded
+            val eventData = mutableMapOf<String, String>()
+            rawValue.lines().forEach { line ->
+                if (line.contains(":")) {
+                    val (key, value) = line.split(":", limit = 2)
+                    when {
+                        key.equals("SUMMARY", ignoreCase = true) -> eventData["summary"] = value
+                        key.equals("DTSTART", ignoreCase = true) -> eventData["startTime"] = value
+                        key.equals("DTEND", ignoreCase = true) -> eventData["endTime"] = value
+                        key.equals("LOCATION", ignoreCase = true) -> eventData["location"] = value
+                        key.equals("DESCRIPTION", ignoreCase = true) -> eventData["description"] = value
+                    }
+                }
+            }
+            return ProcessedQRData(rawValue, QRContentType.CALENDAR_EVENT, eventData)
+        }
+
+        // --- App Deep Link (Example for a custom scheme) ---
+        // myapp://screen/some_id
+        if (rawValue.startsWith("myapp://", ignoreCase = true)) { // Replace "myapp" with your actual scheme
+            return ProcessedQRData(rawValue, QRContentType.APP_DEEP_LINK, mapOf("uri" to rawValue))
+        }
+
+        // --- ISBN (International Standard Book Number) ---
+        // Example: 978-3-16-148410-0
+        // A simple regex might be too broad, but you could check for patterns like this
+        // if (rawValue.matches(Regex("^(978|979)-[0-9]{1,5}-[0-9]{1,7}-[0-9]{1,6}-[0-9]$"))) {
+        //     return ProcessedQRData(rawValue, QRContentType.ISBN, mapOf("isbn" to rawValue))
+        // }
+        // For simplicity, often TEXT is fine unless you have specific ISBN handling.
+
+        // --- Default to TEXT ---
+        // If none of the above, consider it plain text
+        return ProcessedQRData(rawValue, QRContentType.TEXT)
+    }
+
+    /**
+     * Helper function to parse key-value strings.
+     * Example: "S:MySSID;T:WPA;P:MyPassword"
+     * with entryDelimiter = ';', keyValueDelimiter = ':'
+     * will produce mapOf("S" to "MySSID", "T" to "WPA", "P" to "MyPassword")
+     */
+    private fun parseKeyValueString(
+        input: String,
+        entryDelimiter: Char,
+        keyValueDelimiter: Char
+    ): Map<String, String> {
+        val map = mutableMapOf<String, String>()
+        val entries = input.split(entryDelimiter)
+        for (entry in entries) {
+            if (entry.isBlank()) continue
+            val parts = entry.split(keyValueDelimiter, limit = 2)
+            if (parts.size == 2) {
+                map[parts[0].trim()] = parts[1].trim()
+            } else if (parts.isNotEmpty()) {
+                // Handle cases where a value might be empty after the delimiter (e.g. "KEY:;")
+                map[parts[0].trim()] = ""
+            }
+        }
+        return map
+    }
+}
 
 data class QRScanUiState(
     val hasCameraPermission: Boolean = false,
@@ -520,7 +731,7 @@ fun EnhancedScanResultDialog(
                 if (result.type == QRDataProcessor.QRContentType.URL) {
                     Button(
                         onClick = {
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(result.rawValue))
+                            val intent = Intent(Intent.ACTION_VIEW, result.rawValue.toUri())
                             context.startActivity(intent)
                             onDismiss()
                         },
