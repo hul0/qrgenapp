@@ -5,15 +5,16 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.viewModels
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Create
 import androidx.compose.material.icons.filled.Home
@@ -21,17 +22,34 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.SettingsBrightness
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationBar
+import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -39,14 +57,23 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.google.android.gms.ads.*
+import com.google.android.gms.ads.AdError
+import com.google.android.gms.ads.AdListener
+import com.google.android.gms.ads.AdRequest
+import com.google.android.gms.ads.AdSize
+import com.google.android.gms.ads.AdView
+import com.google.android.gms.ads.FullScreenContentCallback
+import com.google.android.gms.ads.LoadAdError
+import com.google.android.gms.ads.MobileAds
 import com.google.android.gms.ads.interstitial.InterstitialAd
 import com.google.android.gms.ads.interstitial.InterstitialAdLoadCallback
 import com.google.android.gms.ads.rewarded.RewardedAd
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
 import com.hulo.qrgenapp.ui.theme.QRGenAppTheme
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
+
+// IMPORTANT: Use Google's TEST Ad Unit IDs for development and testing.
+// Replace these with your actual production IDs ONLY when your app is published.
 private const val BANNER_AD_UNIT_ID_TOP = "ca-app-pub-3940256099942544/6300978111" // Google's Test Banner Ad Unit ID
 private const val BANNER_AD_UNIT_ID_BOTTOM = "ca-app-pub-3940256099942544/6300978111" // Google's Test Banner Ad Unit ID
 private const val BANNER_AD_UNIT_ID_INLINE = "ca-app-pub-3940256099942544/6300978111" // Google's Test Banner Ad Unit ID
@@ -66,8 +93,8 @@ class MainActivity : ComponentActivity() {
     // Declared userActionCount here
     private var userActionCount = 0
     private var lastInterstitialTime = 0L
-    private val minInterstitialInterval = 5000L // 5 seconds minimum between interstitials
-    private val actionsBeforeInterstitial = 1 // Show interstitial after 1 user action (generating/scanning)
+    private val minInterstitialInterval = 20000L // 30 seconds minimum between interstitials
+    private val actionsBeforeInterstitial = 2 // Show interstitial after 1 user action (generating/scanning)
 
     private var isInterstitialLoading = false
     private var isRewardedLoading = false
@@ -97,7 +124,11 @@ class MainActivity : ComponentActivity() {
                         qrGenViewModel = qrGenViewModel,
                         qrScanViewModel = qrScanViewModel,
                         userViewModel = userViewModel, // Pass UserViewModel
-                        onShowInterstitialAd = ::showInterstitialAdSmart,
+                        onShowInterstitialAd = {
+                            // Increment userActionCount here as this is a user interaction point
+                            userActionCount++
+                            showInterstitialAdSmart()
+                        },
                         onShowRewardedAd = ::showRewardedAd,
                         darkTheme = darkTheme,
                         onToggleTheme = { darkTheme = !darkTheme } // Pass toggle function
@@ -140,7 +171,7 @@ class MainActivity : ComponentActivity() {
                 Log.d(AD_LOG_TAG, "Interstitial ad was dismissed.")
                 mInterstitialAd = null
                 lastInterstitialTime = System.currentTimeMillis()
-                userActionCount = 0
+                userActionCount = 0 // Reset after showing an ad
                 loadInterstitialAd()
             }
 
@@ -165,7 +196,6 @@ class MainActivity : ComponentActivity() {
             mInterstitialAd != null) {
 
             mInterstitialAd?.show(this)
-            userActionCount = 0 // Reset after showing
         } else {
             Log.d(AD_LOG_TAG, "Interstitial ad not ready. Actions: $userActionCount, Time since last ad: ${timeSinceLastAd / 1000}s. Loading status: ${if (isInterstitialLoading) "Loading" else "Not loading"}")
             if (mInterstitialAd == null && !isInterstitialLoading) {
@@ -253,7 +283,7 @@ fun MainAppScreen(
     qrGenViewModel: QRGenViewModel,
     qrScanViewModel: QRScanViewModel,
     userViewModel: UserViewModel, // UserViewModel parameter
-    onShowInterstitialAd: () -> Unit,
+    onShowInterstitialAd: () -> Unit, // This lambda now handles the userActionCount increment
     onShowRewardedAd: (onRewardEarned: (Int) -> Unit) -> Unit,
     darkTheme: Boolean,
     onToggleTheme: () -> Unit
@@ -271,10 +301,10 @@ fun MainAppScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("QR Code Pro") },
+                title = { Text("QRWiz") },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    containerColor = MaterialTheme.colorScheme.secondary,
+                    titleContentColor = MaterialTheme.colorScheme.primary
                 ),
                 actions = {
                     // Display coin balance in the top bar
@@ -371,8 +401,7 @@ fun MainAppScreen(
                             viewModel = qrGenViewModel,
                             coinBalance = userUiState.coins, // Pass coin balance
                             onDeductCoins = userViewModel::deductCoins, // Pass deduct coins function
-                            onShowInterstitialAd = onShowInterstitialAd,
-                            // Removed onShowRewardedAd from here as per request
+                            onShowInterstitialAd = onShowInterstitialAd, // This now includes userActionCount++
                             showInlineAd = showInlineAd,
                             showToast = { message -> context.showToast(message) } // Pass Android Context's showToast
                         )
@@ -382,12 +411,9 @@ fun MainAppScreen(
                             viewModel = qrScanViewModel,
                             onAddCoins = { amount ->
                                 userViewModel.addCoins(amount)
-                                // userActionCount increment for interstitial is handled by onShowInterstitialAd call inside QRScanScreen
                             },
-                            onShowInterstitialAd = onShowInterstitialAd,
-                            // Removed onShowRewardedAd from here as per request
-                            showInlineAd = showInlineAd,
-
+                            onShowInterstitialAd = onShowInterstitialAd, // This now includes userActionCount++
+                            showInlineAd = showInlineAd
                         )
                     }
                     composable(Screen.GainCoins.route) {

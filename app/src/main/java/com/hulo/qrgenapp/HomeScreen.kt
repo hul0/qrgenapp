@@ -46,7 +46,7 @@ fun HomeScreen(
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = "Welcome to QR Code Pro!",
+            text = "Welcome to QRWiz!",
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onBackground,

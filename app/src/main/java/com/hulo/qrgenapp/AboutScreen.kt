@@ -37,7 +37,7 @@ fun AboutScreen() {
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            text = "About QR Code Pro",
+            text = "About QR Code Scanner & Generator - QRWiz", // Updated app name
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onBackground
@@ -59,7 +59,7 @@ fun AboutScreen() {
         ) {
             Column(modifier = Modifier.padding(20.dp)) {
                 Text(
-                    text = "QR Code Pro is a versatile and user-friendly application designed to simplify your QR code interactions. Whether you need to quickly generate a QR code for sharing information or efficiently scan one to access content, our app provides a seamless experience.",
+                    text = "QR Code Scanner & Generator - QRWiz is a versatile and user-friendly application designed to simplify your QR code interactions. Whether you need to quickly generate a QR code for sharing information or efficiently scan one to access content, our app provides a seamless experience.",
                     style = MaterialTheme.typography.bodyLarge,
                     textAlign = TextAlign.Justify,
                     color = MaterialTheme.colorScheme.onSurface
@@ -78,7 +78,38 @@ fun AboutScreen() {
                 BulletPointText(text = "Gamified experience with coin rewards for scanning and ad views.")
                 Spacer(modifier = Modifier.height(16.dp))
                 Text(
-                    text = "Developed with ❤️ using Jetpack Compose and Google's latest technologies.",
+                    text = "Developed by Rupam Ghosh with ❤️ using Jetpack Compose and Google's latest technologies.", // Added developer name
+                    style = MaterialTheme.typography.bodySmall,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "Contact: nmrupam@proton.me", // Added contact email
+                    style = MaterialTheme.typography.bodySmall,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.fillMaxWidth(),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(modifier = Modifier.height(24.dp))
+
+                // Attribution Section
+                Text(
+                    text = "Attributions:",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Text(
+                    text = "The app icon for QR Code Scanner & Generator - QRWiz was designed using resources from Freepik.com. We extend our sincere gratitude to Freepik for providing high-quality assets that helped enhance our app's visual appeal.",
+                    style = MaterialTheme.typography.bodySmall,
+                    textAlign = TextAlign.Justify,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = "Icon by Freepik (www.freepik.com)", // Direct attribution link if possible, or just the site
                     style = MaterialTheme.typography.bodySmall,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.fillMaxWidth(),

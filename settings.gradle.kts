@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "QR Code Generator"
+rootProject.name = "QR Scanner & Generator - QRWiz"
 include(":app")

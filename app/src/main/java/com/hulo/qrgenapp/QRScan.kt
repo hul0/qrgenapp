@@ -1,7 +1,10 @@
 package com.hulo.qrgenapp
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.net.Uri
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -45,14 +48,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import java.util.concurrent.Executors
 import androidx.camera.core.Preview as CameraPreviewUseCase
 
@@ -61,7 +67,8 @@ data class QRScanUiState(
     val scannedCode: QRDataProcessor.ProcessedQRData? = null,
     val isResultDialogShown: Boolean = false,
     val scanCount: Int = 0,
-    val showPremiumFeatures: Boolean = false
+    val showPremiumFeatures: Boolean = false,
+    val scanCooldownRemaining: Int = 0 // New state for scan cooldown
 )
 
 class QRScanViewModel : ViewModel() {
@@ -95,6 +102,22 @@ class QRScanViewModel : ViewModel() {
             it.copy(showPremiumFeatures = !it.showPremiumFeatures)
         }
     }
+
+    // Function to start the scan cooldown
+    fun startScanCooldown() {
+        // Only start if not already in cooldown or if cooldown just finished (i.e., it's 0)
+        if (_uiState.value.scanCooldownRemaining == 0) {
+            _uiState.update { it.copy(scanCooldownRemaining = 10) } // 10 seconds cooldown
+            viewModelScope.launch {
+                for (i in 9 downTo 0) {
+                    delay(1000L)
+                    _uiState.update { it.copy(scanCooldownRemaining = i) }
+                }
+                // After cooldown, ensure it's explicitly 0
+                _uiState.update { it.copy(scanCooldownRemaining = 0) }
+            }
+        }
+    }
 }
 
 @Composable
@@ -102,7 +125,6 @@ fun QRScanScreen(
     viewModel: QRScanViewModel,
     onAddCoins: (Int) -> Unit, // Callback to add coins
     onShowInterstitialAd: () -> Unit,
-    // Removed onShowRewardedAd from here as it's only for GainCoinsScreen
     showInlineAd: Boolean = false
 ) {
     val uiState by viewModel.uiState.collectAsState()
@@ -147,14 +169,70 @@ fun QRScanScreen(
                 .weight(1f)
         ) {
             if (uiState.hasCameraPermission) {
-                CameraPreview { rawValue ->
-                    val processedData = QRDataProcessor.process(rawValue)
-                    viewModel.onCodeScanned(processedData)
-                    onAddCoins(5) // Add 5 coins for scanning
-                    onShowInterstitialAd() // Show interstitial ad after scan
-                }
+                CameraPreview(
+                    canScan = uiState.scanCooldownRemaining == 0, // Pass canScan state
+                    onCodeScanned = { rawValue ->
+                        val processedData = QRDataProcessor.process(rawValue)
+                        viewModel.onCodeScanned(processedData)
+                        // Check for internet connection before adding coins
+                        if (isNetworkAvailable(context)) {
+                            onAddCoins(5) // Add 5 coins for scanning
+                            onShowInterstitialAd() // Show interstitial ad after scan
+                        } else {
+                            context.showToast("No internet connection. Coins not awarded.")
+                        }
+                    },
+                    onScanInitiated = {
+                        viewModel.startScanCooldown() // Start cooldown when a scan is initiated
+                    }
+                )
                 ScannerOverlay()
 
+                // Display countdown if cooldown is active
+                if (uiState.scanCooldownRemaining > 0) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(Color.Black.copy(alpha = 0.5f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Card(
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(24.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.QrCodeScanner,
+                                    contentDescription = "Scanning Cooldown",
+                                    modifier = Modifier.size(64.dp),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = "Scanning Cooldown",
+                                    style = MaterialTheme.typography.headlineSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Next scan in ${uiState.scanCooldownRemaining} seconds...",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.secondary
+                                )
+                                CircularProgressIndicator(
+                                    progress = uiState.scanCooldownRemaining / 10f,
+                                    modifier = Modifier.size(48.dp),
+                                    color = MaterialTheme.colorScheme.tertiary
+                                )
+                            }
+                        }
+                    }
+                }
 
             } else {
                 PermissionDeniedScreen {
@@ -360,7 +438,11 @@ fun PremiumFeatureItem(title: String, description: String, icon: androidx.compos
 }
 
 @Composable
-fun CameraPreview(onCodeScanned: (String) -> Unit) {
+fun CameraPreview(
+    canScan: Boolean, // New parameter to control scanning
+    onCodeScanned: (String) -> Unit,
+    onScanInitiated: () -> Unit // New callback for when a scan is detected
+) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val context = LocalContext.current
     val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
@@ -384,7 +466,8 @@ fun CameraPreview(onCodeScanned: (String) -> Unit) {
                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                 .build()
                 .also {
-                    it.setAnalyzer(cameraExecutor, QRCodeAnalyzer(onCodeScanned))
+                    // Pass canScan and onScanInitiated to the analyzer
+                    it.setAnalyzer(cameraExecutor, QRCodeAnalyzer(canScan, onCodeScanned, onScanInitiated))
                 }
 
             try {
@@ -400,23 +483,51 @@ fun CameraPreview(onCodeScanned: (String) -> Unit) {
             }
 
             previewView
+        },
+        update = { previewView ->
+            // Update the analyzer with the latest canScan state
+            val cameraProvider = cameraProviderFuture.get()
+            cameraProvider.unbindAll() // Unbind to rebind with updated analyzer
+            val preview = CameraPreviewUseCase.Builder().build().also {
+                it.setSurfaceProvider(previewView.surfaceProvider)
+            }
+            val cameraSelector = CameraSelector.Builder()
+                .requireLensFacing(CameraSelector.LENS_FACING_BACK)
+                .build()
+            val imageAnalysis = ImageAnalysis.Builder()
+                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                .build()
+                .also {
+                    it.setAnalyzer(cameraExecutor, QRCodeAnalyzer(canScan, onCodeScanned, onScanInitiated))
+                }
+            try {
+                cameraProvider.bindToLifecycle(
+                    lifecycleOwner,
+                    cameraSelector,
+                    preview,
+                    imageAnalysis
+                )
+            } catch (e: Exception) {
+                Log.e("QRScan", "CameraX binding failed during update", e)
+            }
         }
     )
 }
 
 private class QRCodeAnalyzer(
-    private val onCodeScanned: (String) -> Unit
+    private val canScan: Boolean, // New parameter to control scanning
+    private val onCodeScanned: (String) -> Unit,
+    private val onScanInitiated: () -> Unit // New callback
 ) : ImageAnalysis.Analyzer {
     private val options = BarcodeScannerOptions.Builder()
         .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
         .build()
 
     private val scanner = BarcodeScanning.getClient(options)
-    private var isScanning = true
 
     @androidx.annotation.OptIn(androidx.camera.core.ExperimentalGetImage::class)
     override fun analyze(imageProxy: androidx.camera.core.ImageProxy) {
-        if (!isScanning) {
+        if (!canScan) { // Check canScan before processing
             imageProxy.close()
             return
         }
@@ -428,12 +539,9 @@ private class QRCodeAnalyzer(
             scanner.process(image)
                 .addOnSuccessListener { barcodes ->
                     if (barcodes.isNotEmpty()) {
-                        isScanning = false
                         barcodes.first().rawValue?.let {
+                            onScanInitiated() // Notify ViewModel to start cooldown
                             onCodeScanned(it)
-                            android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
-                                isScanning = true
-                            }, 3000)
                         }
                     }
                 }
@@ -636,6 +744,15 @@ fun PermissionDeniedScreen(onRequestPermission: () -> Unit) {
             Text("Grant Camera Permission", style = MaterialTheme.typography.titleMedium)
         }
     }
+}
+
+// Function to check network availability
+fun isNetworkAvailable(context: Context): Boolean {
+    val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+    val network = connectivityManager.activeNetwork ?: return false
+    val capabilities = connectivityManager.getNetworkCapabilities(network) ?: return false
+    return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+            capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_VALIDATED)
 }
 
 fun android.content.Context.showToast(message: String) {
