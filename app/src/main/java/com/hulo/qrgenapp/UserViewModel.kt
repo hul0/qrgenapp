@@ -28,8 +28,8 @@ class UserViewModel(private val userPreferences: UserPreferences) : ViewModel() 
     // Constants for redeem code and premium
     companion object {
         private const val PREMIUM_COST_DIAMONDS = 1000
-        private const val REDEEM_CODE_NEW_LAUNCH = "NEWLAUNCH100"
-        private const val REDEEM_REWARD_DIAMONDS = 100
+        private const val REDEEM_CODE_NEW_LAUNCH = "NEWLAUNCH1000"
+        private const val REDEEM_REWARD_DIAMONDS = 1000
         private const val REDEEM_SALT = "qrwiz_salt_2025_v1" // Salt for hashing
     }
 

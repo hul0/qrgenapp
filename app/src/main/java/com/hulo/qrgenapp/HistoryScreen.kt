@@ -29,7 +29,8 @@ import androidx.compose.ui.unit.dp
 fun HistoryScreen(
     userViewModel: UserViewModel,
     onNavigateToPremium: () -> Unit,
-    showToast: (String) -> Unit
+    showToast: (String) -> Unit,
+    onShowInterstitialAd: () -> Unit // New: Callback for showing interstitial ads
 ) {
     val uiState by userViewModel.uiState.collectAsState()
     val scanHistory = uiState.scanHistory
@@ -45,18 +46,18 @@ fun HistoryScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Top
     ) {
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp)) // Slightly smaller top spacer
 
         Icon(
             imageVector = Icons.Default.History,
             contentDescription = "Scan History",
-            modifier = Modifier.size(36.dp),
+            modifier = Modifier.size(20.dp), // Slightly smaller icon
             tint = MaterialTheme.colorScheme.primary
         )
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp)) // Slightly smaller spacer
         Text(
             text = "Scan History",
-            style = MaterialTheme.typography.headlineMedium,
+            style = MaterialTheme.typography.headlineSmall, // Smaller headline
             fontWeight = FontWeight.ExtraBold,
             color = MaterialTheme.colorScheme.onBackground,
             textAlign = TextAlign.Center
@@ -67,48 +68,49 @@ fun HistoryScreen(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 8.dp), // Add vertical padding to card
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                shape = RoundedCornerShape(12.dp),
+                    .padding(vertical = 4.dp), // Reduced vertical padding for card
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp), // Reduced elevation
+                shape = RoundedCornerShape(12.dp), // Slightly less rounded
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
             ) {
                 Column(
-                    modifier = Modifier.padding(20.dp),
+                    modifier = Modifier.padding(16.dp), // Reduced padding inside card
                     horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(6.dp) // Reduced spacing
                 ) {
                     Icon(
                         imageVector = Icons.Default.Lock,
                         contentDescription = "Premium Feature",
-                        modifier = Modifier.size(48.dp),
+                        modifier = Modifier.size(20.dp), // Smaller icon
                         tint = MaterialTheme.colorScheme.onSecondaryContainer
                     )
                     Text(
                         text = "Unlock Unlimited History with Premium!",
-                        style = MaterialTheme.typography.titleLarge,
+                        style = MaterialTheme.typography.titleMedium, // Smaller title
                         fontWeight = FontWeight.SemiBold,
                         color = MaterialTheme.colorScheme.onSecondaryContainer,
                         textAlign = TextAlign.Center
                     )
                     Text(
                         text = "Free users can see up to ${UserPreferences.FREE_USER_HISTORY_LIMIT} recent scans. Go Premium for unlimited history and more!",
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodySmall, // Smaller body text
                         color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f),
                         textAlign = TextAlign.Center
                     )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(4.dp)) // Reduced spacer
                     Button(
                         onClick = onNavigateToPremium,
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        shape = RoundedCornerShape(10.dp), // Slightly less rounded button
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp) // Smaller padding
                     ) {
-                        Icon(Icons.Default.Star, contentDescription = "Premium")
-                        Spacer(Modifier.width(8.dp))
-                        Text("Go Premium!")
+                        Icon(Icons.Default.Star, contentDescription = "Premium", modifier = Modifier.size(18.dp)) // Smaller icon
+                        Spacer(Modifier.width(6.dp)) // Reduced spacing
+                        Text("Go Premium!", style = MaterialTheme.typography.labelLarge) // Smaller text style
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp)) // Reduced spacer
         }
 
         if (scanHistory.isEmpty()) {
@@ -122,7 +124,7 @@ fun HistoryScreen(
                 Icon(
                     imageVector = Icons.Default.Info,
                     contentDescription = "No History",
-                    modifier = Modifier.size(44.dp),
+                    modifier = Modifier.size(64.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                 )
                 Spacer(modifier = Modifier.height(16.dp))
@@ -134,31 +136,31 @@ fun HistoryScreen(
                 )
             }
         } else {
-            // Use LazyColumn for efficient scrolling of history items
+            // LazyColumn for efficient scrolling of history items - now takes more weight
             LazyColumn(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .weight(1f), // Take available space and make it scrollable
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-                contentPadding = PaddingValues(vertical = 8.dp)
+                    .weight(3f), // Increased weight to make it the biggest field
+                verticalArrangement = Arrangement.spacedBy(8.dp), // Reduced spacing between items
+                contentPadding = PaddingValues(vertical = 4.dp) // Reduced vertical padding
             ) {
                 items(scanHistory) { scanResult ->
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
-                        shape = RoundedCornerShape(12.dp),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp), // Slightly less elevation
+                        shape = RoundedCornerShape(10.dp), // Slightly less rounded
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow)
                     ) {
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(16.dp),
+                                .padding(12.dp), // Reduced padding inside item card
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween // Distribute content
                         ) {
                             Text(
                                 text = scanResult,
-                                style = MaterialTheme.typography.bodyLarge,
+                                style = MaterialTheme.typography.bodyMedium, // Slightly smaller text
                                 color = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.weight(1f) // Allow text to take available space
                             )
@@ -167,30 +169,35 @@ fun HistoryScreen(
                                 onClick = {
                                     clipboardManager.setText(AnnotatedString(scanResult))
                                     context.showToast("Copied to clipboard!")
+                                    if (!isPremium) { // Only show ad if not premium
+                                        onShowInterstitialAd() // Show interstitial ad after copy
+                                    }
                                 }
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.ContentCopy,
                                     contentDescription = "Copy to Clipboard",
-                                    tint = MaterialTheme.colorScheme.secondary
+                                    tint = MaterialTheme.colorScheme.secondary,
+                                    modifier = Modifier.size(20.dp) // Slightly smaller icon
                                 )
                             }
                         }
                     }
                 }
             }
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp)) // Reduced spacer
             Button(
                 onClick = {
                     userViewModel.clearScanHistory()
                     showToast("History cleared!")
                 },
-                shape = RoundedCornerShape(12.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                shape = RoundedCornerShape(10.dp), // Slightly less rounded button
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp) // Smaller padding
             ) {
-                Text("Clear History")
+                Text("Clear History", style = MaterialTheme.typography.labelLarge) // Smaller text style
             }
         }
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp)) // Slightly smaller bottom spacer
     }
 }

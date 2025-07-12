@@ -64,6 +64,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.google.android.gms.ads.AdError
 import com.google.android.gms.ads.AdListener
+import com.google.android.gms.ads.AdLoader
 import com.google.android.gms.ads.AdRequest
 import com.google.android.gms.ads.AdSize
 import com.google.android.gms.ads.AdView
@@ -285,7 +286,7 @@ class MainActivity : ComponentActivity() {
         if (isNativeAdLoading || mNativeAd != null) return
 
         isNativeAdLoading = true
-        val adLoader = com.google.android.gms.ads.AdLoader.Builder(this, NATIVE_AD_UNIT_ID)
+        val adLoader = AdLoader.Builder(this, NATIVE_AD_UNIT_ID)
             .forNativeAd { nativeAd ->
                 Log.d(AD_LOG_TAG, "Native ad loaded successfully.")
                 mNativeAd = nativeAd
@@ -530,7 +531,8 @@ fun MainAppScreen(
                         HistoryScreen(
                             userViewModel = userViewModel,
                             onNavigateToPremium = { navController.navigate(Screen.Premium.route) }, // Navigate to premium from here
-                            showToast = { message -> context.showToast(message) }
+                            showToast = { message -> context.showToast(message) },
+                            onShowInterstitialAd = onShowInterstitialAd
                         )
                     }
                     composable(Screen.About.route) {
