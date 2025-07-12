@@ -131,6 +131,7 @@ class MainActivity : ComponentActivity() {
             var darkTheme by remember { mutableStateOf(false) } // State for dark mode toggle
             val userUiState by userViewModel.uiState.collectAsState() // Observe premium status
 
+
             QRGenAppTheme(darkTheme = darkTheme) { // Apply the custom theme
                 Surface(
                     modifier = Modifier.fillMaxSize(),
