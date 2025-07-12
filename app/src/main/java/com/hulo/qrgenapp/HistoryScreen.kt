@@ -50,7 +50,7 @@ fun HistoryScreen(
         Icon(
             imageVector = Icons.Default.History,
             contentDescription = "Scan History",
-            modifier = Modifier.size(96.dp),
+            modifier = Modifier.size(36.dp),
             tint = MaterialTheme.colorScheme.primary
         )
         Spacer(modifier = Modifier.height(16.dp))
@@ -69,7 +69,7 @@ fun HistoryScreen(
                     .fillMaxWidth()
                     .padding(vertical = 8.dp), // Add vertical padding to card
                 elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(12.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
             ) {
                 Column(
@@ -122,7 +122,7 @@ fun HistoryScreen(
                 Icon(
                     imageVector = Icons.Default.Info,
                     contentDescription = "No History",
-                    modifier = Modifier.size(64.dp),
+                    modifier = Modifier.size(44.dp),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                 )
                 Spacer(modifier = Modifier.height(16.dp))
