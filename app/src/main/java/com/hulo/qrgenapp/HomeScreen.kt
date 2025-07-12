@@ -56,10 +56,7 @@ fun HomeScreen(
     ) {
         // Banner Ad at the top of the screen
         if (showNativeAd) { // showNativeAd is true if not premium
-            BannerAd(
-                adUnitId = BANNER_AD_UNIT_ID_HOME_SCREEN,
-                modifier = Modifier.fillMaxWidth()
-            )
+
             Spacer(modifier = Modifier.height(8.dp)) // Small spacer after ad
         }
 

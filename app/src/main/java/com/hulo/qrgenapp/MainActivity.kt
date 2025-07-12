@@ -105,8 +105,8 @@ class MainActivity : ComponentActivity() {
     // Declared userActionCount here
     private var userActionCount = 0
     private var lastInterstitialTime = 0L
-    private val minInterstitialInterval = 5000L // 5 seconds minimum between interstitials
-    private val actionsBeforeInterstitial = 5 // Show interstitial after 5 user actions (screen switches)
+    private val minInterstitialInterval = 40000L // 5 seconds minimum between interstitials
+    private val actionsBeforeInterstitial = 7 // Show interstitial after 5 user actions (screen switches)
 
     private var isInterstitialLoading = false
     private var isRewardedLoading = false
@@ -122,6 +122,7 @@ class MainActivity : ComponentActivity() {
         MobileAds.initialize(this) { initializationStatus ->
             Log.d(AD_LOG_TAG, "Mobile Ads SDK Initialized: $initializationStatus")
             loadInterstitialAd()
+            AdEventLogger.logInterstitialShown()
             loadRewardedAd()
             loadNativeAd() // Load native ad on app start
         }
@@ -176,6 +177,7 @@ class MainActivity : ComponentActivity() {
 
                 override fun onAdLoaded(interstitialAd: InterstitialAd) {
                     Log.d(AD_LOG_TAG, "Interstitial ad loaded successfully.")
+                    AdEventLogger.logInterstitialShown()
                     mInterstitialAd = interstitialAd
                     isInterstitialLoading = false
                     setInterstitialAdCallbacks()
@@ -292,6 +294,7 @@ class MainActivity : ComponentActivity() {
         val adLoader = AdLoader.Builder(this, NATIVE_AD_UNIT_ID)
             .forNativeAd { nativeAd ->
                 Log.d(AD_LOG_TAG, "Native ad loaded successfully.")
+                AdEventLogger.logNativeLoaded()
                 mNativeAd = nativeAd
                 isNativeAdLoading = false
             }
@@ -596,6 +599,7 @@ fun BannerAd(
 
                 adListener = object : AdListener() {
                     override fun onAdLoaded() {
+                        AdEventLogger.logBannerLoaded()
                         Log.d(AD_LOG_TAG, "Banner ad loaded successfully for unit: $adUnitId")
                     }
 
