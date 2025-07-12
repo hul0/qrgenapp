@@ -1,3 +1,4 @@
+// file: UserViewModel.kt
 package com.hulo.qrgenapp
 
 import androidx.lifecycle.ViewModel
@@ -9,7 +10,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 data class UserUiState(
-    val coins: Int = 0,
+    // Initialize with the default starting coins for UI display, will be updated by loadUserCoins()
+    val coins: Int = UserPreferences.DEFAULT_STARTING_COINS,
     val isLoading: Boolean = true,
     val errorMessage: String? = null
 )
@@ -27,13 +29,14 @@ class UserViewModel(private val userPreferences: UserPreferences) : ViewModel() 
         viewModelScope.launch {
             _uiState.update { it.copy(isLoading = true) }
             try {
-                val currentCoins = userPreferences.getCoins()
                 if (userPreferences.isFirstLaunch()) {
-                    // Initialize with 30 coins on first launch
-                    userPreferences.setCoins(30)
-                    userPreferences.setFirstLaunch(false)
-                    _uiState.update { it.copy(coins = 30, isLoading = false) }
+                    // Initialize with 10 coins on the very first launch
+                    userPreferences.setCoins(UserPreferences.DEFAULT_STARTING_COINS)
+                    userPreferences.setFirstLaunch(false) // Mark as not the first launch
+                    _uiState.update { it.copy(coins = UserPreferences.DEFAULT_STARTING_COINS, isLoading = false) }
                 } else {
+                    // For subsequent launches, load the existing balance
+                    val currentCoins = userPreferences.getCoins()
                     _uiState.update { it.copy(coins = currentCoins, isLoading = false) }
                 }
             } catch (e: Exception) {
