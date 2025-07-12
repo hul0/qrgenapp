@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.android.gms.ads.nativead.NativeAd
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
@@ -67,7 +68,6 @@ data class QRScanUiState(
     val scannedCode: QRDataProcessor.ProcessedQRData? = null,
     val isResultDialogShown: Boolean = false,
     val scanCount: Int = 0,
-    val showPremiumFeatures: Boolean = false,
     val scanCooldownRemaining: Int = 0 // New state for scan cooldown
 )
 
@@ -97,12 +97,6 @@ class QRScanViewModel : ViewModel() {
         }
     }
 
-    fun togglePremiumFeatures() {
-        _uiState.update {
-            it.copy(showPremiumFeatures = !it.showPremiumFeatures)
-        }
-    }
-
     // Function to start the scan cooldown
     fun startScanCooldown() {
         // Only start if not already in cooldown or if cooldown just finished (i.e., it's 0)
@@ -124,8 +118,12 @@ class QRScanViewModel : ViewModel() {
 fun QRScanScreen(
     viewModel: QRScanViewModel,
     onAddCoins: (Int) -> Unit, // Callback to add coins
+    onAddScanToHistory: (String) -> Unit, // New: Callback to add scan to history
     onShowInterstitialAd: () -> Unit,
-    showInlineAd: Boolean = false
+    isPremiumUser: Boolean, // New: Premium status
+    showToast: (String) -> Unit, // Callback for showing toasts
+    nativeAd: NativeAd?, // New: Native Ad
+    showNativeAd: Boolean // New: Control native ad visibility
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -145,23 +143,16 @@ fun QRScanScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        if (uiState.hasCameraPermission) {
-            ScanStatsCard(
-                scanCount = uiState.scanCount,
-                onShowPremiumFeatures = { viewModel.togglePremiumFeatures() }
-            )
-        }
+        ScanStatsCard(
+            scanCount = uiState.scanCount,
+            isPremiumUser = isPremiumUser // Pass premium status
+        )
 
-        AnimatedVisibility(
-            visible = showInlineAd && uiState.scanCount >= 2,
-            enter = fadeIn() + slideInVertically(),
-            exit = fadeOut() + slideOutVertically()
-        ) {
-            InlineBannerAd(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                isVisible = true
-            )
-        }
+        // Native Ad Section
+        NativeAdViewComposable(
+            nativeAd = nativeAd,
+            showAd = showNativeAd
+        )
 
         Box(
             modifier = Modifier
@@ -174,16 +165,19 @@ fun QRScanScreen(
                     onCodeScanned = { rawValue ->
                         val processedData = QRDataProcessor.process(rawValue)
                         viewModel.onCodeScanned(processedData)
+                        onAddScanToHistory(rawValue) // Add to history
                         // Check for internet connection before adding coins
                         if (isNetworkAvailable(context)) {
                             onAddCoins(5) // Add 5 coins for scanning
-                            onShowInterstitialAd() // Show interstitial ad after scan
+                            if (!isPremiumUser) { // Only show interstitial if not premium
+                                onShowInterstitialAd() // Show interstitial ad after scan
+                            }
                         } else {
                             context.showToast("No internet connection. Coins not awarded.")
                         }
                     },
                     onScanInitiated = {
-                        viewModel.startScanCooldown() // Start cooldown when a scan is initiated
+                        viewModel.startScanCooldown() // Start cooldown when a scan is detected
                     }
                 )
                 ScannerOverlay()
@@ -245,7 +239,9 @@ fun QRScanScreen(
     if (uiState.isResultDialogShown && uiState.scannedCode != null) {
         EnhancedScanResultDialog(
             result = uiState.scannedCode!!,
-            onDismiss = { viewModel.dismissResultDialog() }
+            onDismiss = { viewModel.dismissResultDialog() },
+            isPremiumUser = isPremiumUser, // Pass premium status
+            showToast = showToast
         )
     }
 }
@@ -253,7 +249,7 @@ fun QRScanScreen(
 @Composable
 fun ScanStatsCard(
     scanCount: Int,
-    onShowPremiumFeatures: () -> Unit
+    isPremiumUser: Boolean // New parameter
 ) {
     Card(
         modifier = Modifier
@@ -283,156 +279,39 @@ fun ScanStatsCard(
                 )
             }
 
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
+            // Display premium status or prompt to go premium
+            if (isPremiumUser) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Star,
+                        contentDescription = "Premium User",
+                        modifier = Modifier.size(24.dp),
+                        tint = MaterialTheme.colorScheme.tertiary
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        text = "Premium User",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.tertiary
+                    )
+                }
+            } else {
                 Button(
-                    onClick = onShowPremiumFeatures,
+                    onClick = { /* This button can navigate to PremiumPlanScreen if needed */ },
                     modifier = Modifier.height(36.dp),
                     shape = RoundedCornerShape(8.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
                 ) {
                     Icon(
                         Icons.Default.Star,
-                        contentDescription = "Premium Features",
+                        contentDescription = "Go Premium",
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(Modifier.width(4.dp))
-                    Text("Premium", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSecondaryContainer)
-                }
-
-                Button(
-                    onClick = {
-                        // This button no longer triggers a rewarded ad directly.
-                        // User needs to go to GainCoinsScreen to earn coins for premium features.
-                        // Optionally, you could add a toast here guiding the user.
-                        // context.showToast("Visit 'Coins' tab to unlock premium features!")
-                    },
-                    modifier = Modifier.height(36.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
-                ) {
-                    Icon(
-                        Icons.Default.History,
-                        contentDescription = "Scan History",
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Text("History", fontSize = 12.sp, color = MaterialTheme.colorScheme.onTertiaryContainer)
+                    Text("Go Premium", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSecondaryContainer)
                 }
             }
-        }
-    }
-}
-
-@Composable
-fun PremiumFeaturesOverlay(
-    onDismiss: () -> Unit,
-    onShowRewardedAd: (onRewardEarned: (Int) -> Unit) -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(Color.Black.copy(alpha = 0.7f))
-            .padding(16.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
-            shape = RoundedCornerShape(16.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Icon(
-                    Icons.Default.Star,
-                    contentDescription = "Premium",
-                    modifier = Modifier.size(64.dp),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Text(
-                    text = "Unlock Premium Features",
-                    style = MaterialTheme.typography.headlineSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                Column(
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    PremiumFeatureItem("Scan History", "Keep track of all your past scans.", Icons.Default.History)
-                    PremiumFeatureItem("Batch Scanning", "Scan multiple QR codes at once.", Icons.AutoMirrored.Filled.Send)
-                    PremiumFeatureItem("Export Results", "Save scan data to files.", Icons.AutoMirrored.Filled.Send)
-                    PremiumFeatureItem("Ad-Free Experience", "Enjoy the app without interruptions.", Icons.Default.Star)
-                }
-
-                Spacer(modifier = Modifier.height(24.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Button(
-                        onClick = {
-                            // This button now guides the user to the GainCoinsScreen
-                            // You would typically navigate here or show a message
-                            onDismiss() // Dismiss the overlay
-                            // Optionally, add a toast or snackbar to guide the user:
-                            // context.showToast("Visit 'Coins' tab to watch ads and unlock premium features!")
-                        },
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                    ) {
-                        Text("Earn Coins to Unlock", color = MaterialTheme.colorScheme.onPrimary)
-                    }
-
-                    OutlinedButton(
-                        onClick = onDismiss,
-                        modifier = Modifier.weight(1f),
-                        shape = RoundedCornerShape(12.dp),
-                        border = ButtonDefaults.outlinedButtonBorder.copy(width = 2.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
-                    ) {
-                        Text("No Thanks")
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun PremiumFeatureItem(title: String, description: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        modifier = Modifier.fillMaxWidth()
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            modifier = Modifier.size(24.dp),
-            tint = MaterialTheme.colorScheme.secondary
-        )
-        Spacer(modifier = Modifier.width(12.dp))
-        Column {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = description,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
     }
 }
@@ -558,7 +437,9 @@ private class QRCodeAnalyzer(
 @Composable
 fun EnhancedScanResultDialog(
     result: QRDataProcessor.ProcessedQRData,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    isPremiumUser: Boolean, // New: Premium status
+    showToast: (String) -> Unit
 ) {
     val context = LocalContext.current
     val clipboardManager = LocalClipboardManager.current
@@ -583,35 +464,37 @@ fun EnhancedScanResultDialog(
                     )
                 }
 
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                    ),
-                    shape = RoundedCornerShape(12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(12.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                if (!isPremiumUser) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                        ),
+                        shape = RoundedCornerShape(12.dp)
                     ) {
-                        Icon(
-                            Icons.Default.Star,
-                            contentDescription = "Premium Tip",
-                            tint = MaterialTheme.colorScheme.secondary,
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Column {
-                            Text(
-                                "Premium Tip",
-                                style = MaterialTheme.typography.labelLarge,
-                                fontWeight = FontWeight.Bold
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                Icons.Default.Star,
+                                contentDescription = "Premium Tip",
+                                tint = MaterialTheme.colorScheme.secondary,
+                                modifier = Modifier.size(24.dp)
                             )
-                            Text(
-                                "Save this scan to history with Premium features!",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Spacer(Modifier.width(8.dp))
+                            Column {
+                                Text(
+                                    "Premium Tip",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    "Your scan history is limited. Go Premium for unlimited history!",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                 }
@@ -648,22 +531,6 @@ fun EnhancedScanResultDialog(
                         Spacer(Modifier.width(8.dp))
                         Text("Open Link")
                     }
-                }
-
-                OutlinedButton(
-                    onClick = {
-                        // This button no longer triggers a rewarded ad directly.
-                        // User needs to go to GainCoinsScreen to earn coins for premium features.
-                        // Optionally, you could add a toast here guiding the user.
-                        // context.showToast("Visit 'Coins' tab to unlock premium features!")
-                        onDismiss()
-                    },
-                    shape = RoundedCornerShape(8.dp),
-                    border = ButtonDefaults.outlinedButtonBorder.copy(width = 1.dp)
-                ) {
-                    Icon(Icons.Default.History, contentDescription = "Save to History", modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Save to History")
                 }
 
                 TextButton(onClick = onDismiss) {

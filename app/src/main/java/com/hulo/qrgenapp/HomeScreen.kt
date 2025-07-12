@@ -9,8 +9,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Redeem
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.CardGiftcard
 import androidx.compose.material.icons.filled.Diamond
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.MonetizationOn
@@ -127,7 +127,7 @@ fun HomeScreen(
         )
         Spacer(modifier = Modifier.height(12.dp))
         FeatureCard(
-            icon = Icons.AutoMirrored.Filled.Redeem,
+            icon = Icons.Default.CardGiftcard,
             title = "Redeem Codes",
             description = "Enter special codes to earn Diamonds!",
             onClick = onNavigateToRedeem,

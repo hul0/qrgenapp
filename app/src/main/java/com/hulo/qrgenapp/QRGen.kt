@@ -58,11 +58,13 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.google.android.gms.ads.nativead.NativeAd
 import com.google.zxing.qrcode.decoder.ErrorCorrectionLevel
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -99,9 +101,9 @@ class QRGenViewModel : ViewModel() {
             return
         }
 
-        val generationCost = 10
+        val generationCost = QRGenerator.getGenerationCost(_uiState.value.errorCorrectionLevel)
         if (!onDeductCoins(generationCost)) {
-            showToast("Not enough coins! You need $generationCost coins to generate a QR code.")
+            showToast("Not enough coins! You need $generationCost coins to generate a QR code with this error correction level.")
             return
         }
 
@@ -180,9 +182,9 @@ fun QRGenScreen(
     coinBalance: Int, // Pass coin balance
     onDeductCoins: (Int) -> Boolean, // Pass deduct coins function
     onShowInterstitialAd: () -> Unit,
-    // Removed onShowRewardedAd from here as it's only for GainCoinsScreen
-    showInlineAd: Boolean = false,
-    showToast: (String) -> Unit // Callback for showing toasts
+    showToast: (String) -> Unit, // Callback for showing toasts
+    nativeAd: NativeAd?, // New: Native Ad
+    showNativeAd: Boolean // New: Control native ad visibility
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -210,6 +212,7 @@ fun QRGenScreen(
             Text(
                 text = "QR Code Generator",
                 style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.primary
             )
 
@@ -229,9 +232,10 @@ fun QRGenScreen(
                 textValue = uiState.inputText,
                 onTextChanged = viewModel::onInputTextChanged,
                 onGenerateClick = {
+                    onShowInterstitialAd() // Show interstitial ad before generation
                     viewModel.generateQRCode(onDeductCoins, showToast) // Pass coin logic
-                    onShowInterstitialAd()
-                }
+                },
+                currentErrorCorrectionLevel = uiState.errorCorrectionLevel // Pass current level
             )
 
             AdvancedOptions(
@@ -245,16 +249,11 @@ fun QRGenScreen(
                 onShareClick = { viewModel.shareQRCode(context) }
             )
 
-            AnimatedVisibility(
-                visible = showInlineAd && uiState.generatedBitmap != null,
-                enter = fadeIn() + slideInVertically(),
-                exit = fadeOut() + slideOutVertically()
-            ) {
-                InlineBannerAd(
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-                    isVisible = true
-                )
-            }
+            // Native Ad Section
+            NativeAdViewComposable(
+                nativeAd = nativeAd,
+                showAd = showNativeAd
+            )
         }
     }
 }
@@ -303,8 +302,10 @@ fun QRCodeDisplay(bitmap: Bitmap?, isGenerating: Boolean) {
 fun QRInputSection(
     textValue: TextFieldValue,
     onTextChanged: (TextFieldValue) -> Unit,
-    onGenerateClick: () -> Unit
+    onGenerateClick: () -> Unit,
+    currentErrorCorrectionLevel: ErrorCorrectionLevel // New parameter
 ) {
+    val generationCost = QRGenerator.getGenerationCost(currentErrorCorrectionLevel)
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -329,7 +330,7 @@ fun QRInputSection(
             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
             elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
         ) {
-            Text("GENERATE QR CODE (10 Coins)", style = MaterialTheme.typography.titleMedium)
+            Text("GENERATE QR CODE ($generationCost Coins)", style = MaterialTheme.typography.titleMedium)
         }
     }
 }
@@ -365,7 +366,7 @@ fun AdvancedOptions(
         ) {
             levels.forEach { level ->
                 DropdownMenuItem(
-                    text = { Text(getErrorCorrectionLevelName(level)) },
+                    text = { Text("${getErrorCorrectionLevelName(level)} - Cost: ${QRGenerator.getGenerationCost(level)} Coins") },
                     onClick = {
                         onLevelSelected(level)
                         expanded = false

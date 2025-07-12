@@ -18,7 +18,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
-import androidx.compose.material.icons.automirrored.filled.Redeem
+import androidx.compose.material.icons.filled.CardGiftcard
 import androidx.compose.material.icons.filled.Create
 import androidx.compose.material.icons.filled.Diamond
 import androidx.compose.material.icons.filled.History
@@ -44,7 +44,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -59,7 +58,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
-import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -79,7 +77,6 @@ import com.google.android.gms.ads.nativead.NativeAdOptions
 import com.google.android.gms.ads.rewarded.RewardedAd
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
 import com.hulo.qrgenapp.ui.theme.QRGenAppTheme
-import kotlinx.coroutines.delay
 
 // IMPORTANT: Use Google's TEST Ad Unit IDs for development and testing.
 // Replace these with your actual production IDs ONLY when your app is published.
@@ -326,7 +323,7 @@ sealed class Screen(val route: String, val title: String, val icon: ImageVector)
     object Generate : Screen("generate", "Generate", Icons.Default.Create)
     object Scan : Screen("scan", "Scan", Icons.Default.QrCodeScanner)
     object GainCoins : Screen("gain_coins", "Coins", Icons.Default.MonetizationOn)
-    object Redeem : Screen("redeem", "Redeem", Icons.AutoMirrored.Filled.Redeem) // New screen for redeeming codes
+    object Redeem : Screen("redeem", "Redeem", Icons.Default.CardGiftcard) // New screen for redeeming codes
     object History : Screen("history", "History", Icons.Default.History) // New screen for history
     object About : Screen("about", "About", Icons.Default.Info)
     object Premium : Screen("premium", "Premium", Icons.Default.Star) // New screen for premium purchase
