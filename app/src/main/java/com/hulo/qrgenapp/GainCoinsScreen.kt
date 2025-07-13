@@ -41,7 +41,11 @@ fun GainCoinsScreen(
     onNavigateToPremium: () -> Unit, // New: Navigate to premium screen
     nativeAd: NativeAd?, // New: Native Ad
     showNativeAd: Boolean,
-    isPremiumUser: Boolean
+    isPremiumUser: Boolean,
+    dailyBonusAvailable: Boolean, // New: Daily bonus available state
+    dailyBonusAmount: Int, // New: Daily bonus amount
+    dailyStreak: Int, // New: Daily streak
+    onClaimDailyBonus: () -> Unit // New: Callback to claim daily bonus
 ) {
     Column(
         modifier = Modifier
@@ -82,6 +86,18 @@ fun GainCoinsScreen(
             modifier = Modifier.padding(horizontal = 12.dp) // Smaller horizontal padding
         )
         Spacer(modifier = Modifier.height(24.dp)) // Smaller spacer
+
+        // Daily Login Bonus Card (New)
+        if (dailyBonusAvailable) {
+            CoinEarningMethodCard(
+                title = "Daily Login Bonus!",
+                description = "Claim your ${dailyBonusAmount} coins for logging in today! Streak: ${dailyStreak + 1} days.",
+                icon = Icons.Default.Star, // Using Star icon for daily bonus
+                buttonText = "Claim Daily Bonus",
+                onClick = onClaimDailyBonus
+            )
+            Spacer(modifier = Modifier.height(12.dp)) // Smaller spacer
+        }
 
         // Ways to earn coins with updated styling
         CoinEarningMethodCard(
@@ -202,7 +218,7 @@ fun GainCoinsScreen(
                     ) // Smaller text
                 }
             }
-        }
+            }
         }
         Spacer(modifier = Modifier.height(16.dp)) // Smaller bottom spacer
     }

@@ -1,9 +1,8 @@
-// file: UserPreferences.kt
 package com.hulo.qrgenapp
 
 import android.content.Context
 import android.content.SharedPreferences
-import androidx.core.content.edit
+import androidx.core.content.edit // Ensure this import is present if using 'edit { }' block
 
 class UserPreferences(context: Context) {
     private val preferences: SharedPreferences =
@@ -17,6 +16,10 @@ class UserPreferences(context: Context) {
         private const val KEY_FIRST_LAUNCH = "first_launch"
         private const val KEY_REDEEMED_CODES = "redeemed_codes" // New: Track redeemed codes
         private const val KEY_SCAN_HISTORY = "scan_history" // New: Scan history
+
+        // New keys for daily login bonus
+        private const val KEY_LAST_LOGIN_DATE = "last_login_date"
+        private const val KEY_DAILY_STREAK = "daily_streak"
 
         // Define the default starting coins and diamonds
         const val DEFAULT_STARTING_COINS = 0 // Changed to 0 as per new logic
@@ -101,5 +104,25 @@ class UserPreferences(context: Context) {
     // Clear scan history
     fun clearScanHistory() {
         preferences.edit { remove(KEY_SCAN_HISTORY) }
+    }
+
+    // New: Get last login date
+    fun getLastLoginDate(): String? {
+        return preferences.getString(KEY_LAST_LOGIN_DATE, null)
+    }
+
+    // New: Set last login date - now accepts nullable String
+    fun setLastLoginDate(date: String?) { // Changed parameter to String?
+        preferences.edit { putString(KEY_LAST_LOGIN_DATE, date) }
+    }
+
+    // New: Get daily streak
+    fun getDailyStreak(): Int {
+        return preferences.getInt(KEY_DAILY_STREAK, 0)
+    }
+
+    // New: Set daily streak
+    fun setDailyStreak(streak: Int) {
+        preferences.edit { putInt(KEY_DAILY_STREAK, streak) }
     }
 }

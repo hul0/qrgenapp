@@ -31,6 +31,8 @@ import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material.icons.filled.MonetizationOn
 import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Star
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -81,6 +83,8 @@ import com.google.android.gms.ads.nativead.NativeAd
 import com.google.android.gms.ads.nativead.NativeAdOptions
 import com.google.android.gms.ads.rewarded.RewardedAd
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
+import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAd
+import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAdLoadCallback
 import com.hulo.qrgenapp.ui.theme.QRGenAppTheme
 
 // IMPORTANT: Use Google's TEST Ad Unit IDs for development and testing.
@@ -88,6 +92,7 @@ import com.hulo.qrgenapp.ui.theme.QRGenAppTheme
 // Removed BANNER_AD_UNIT_ID_TOP and BANNER_AD_UNIT_ID_BOTTOM as banners will be placed per screen.
 private const val INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-3940256099942544/1033173712" // Google's Test Interstitial Ad Unit ID
 private const val REWARDED_AD_UNIT_ID = "ca-app-pub-3940256099942544/5224354917" // Google's Test Rewarded Ad Unit ID
+private const val REWARDED_INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-3940256099942544/5354046379" // Google's Test Rewarded Interstitial Ad Unit ID
 private const val NATIVE_AD_UNIT_ID = "ca-app-pub-3940256099942544/2247696110" // Google's Test Native Ad Unit ID
 private const val BANNER_AD_UNIT_ID = "ca-app-pub-3940256099942544/6300978111" // Google's Test Banner Ad Unit ID
 private const val AD_LOG_TAG = "AdMob"
@@ -100,6 +105,7 @@ class MainActivity : ComponentActivity() {
 
     private var mInterstitialAd: InterstitialAd? = null
     private var mRewardedAd: RewardedAd? = null
+    private var mRewardedInterstitialAd: RewardedInterstitialAd? = null // New: Rewarded Interstitial Ad
     private var mNativeAd: NativeAd? = null // New: Native Ad instance
 
     // Declared userActionCount here
@@ -110,6 +116,7 @@ class MainActivity : ComponentActivity() {
 
     private var isInterstitialLoading = false
     private var isRewardedLoading = false
+    private var isRewardedInterstitialLoading = false // New: Rewarded Interstitial loading state
     private var isNativeAdLoading = false // New: Native ad loading state
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -124,6 +131,7 @@ class MainActivity : ComponentActivity() {
             loadInterstitialAd()
             AdEventLogger.logInterstitialShown()
             loadRewardedAd()
+            loadRewardedInterstitialAd() // Load rewarded interstitial ad on app start
             loadNativeAd() // Load native ad on app start
         }
 
@@ -149,6 +157,7 @@ class MainActivity : ComponentActivity() {
                             }
                         },
                         onShowRewardedAd = ::showRewardedAd,
+                        onShowRewardedInterstitialAdForDailyBonus = ::showRewardedInterstitialAdForDailyBonus, // Pass new ad function
                         darkTheme = darkTheme,
                         onToggleTheme = { darkTheme = !darkTheme }, // Pass toggle function
                         nativeAd = mNativeAd, // Pass native ad to composable
@@ -288,6 +297,68 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun loadRewardedInterstitialAd() {
+        if (isRewardedInterstitialLoading || mRewardedInterstitialAd != null) return
+
+        isRewardedInterstitialLoading = true
+        val adRequest = AdRequest.Builder().build()
+
+        RewardedInterstitialAd.load(
+            this,
+            REWARDED_INTERSTITIAL_AD_UNIT_ID,
+            adRequest,
+            object : RewardedInterstitialAdLoadCallback() {
+                override fun onAdFailedToLoad(adError: LoadAdError) {
+                    Log.e(AD_LOG_TAG, "Rewarded Interstitial ad failed to load: ${adError.message} (Code: ${adError.code})")
+                    mRewardedInterstitialAd = null
+                    isRewardedInterstitialLoading = false
+                }
+
+                override fun onAdLoaded(ad: RewardedInterstitialAd) {
+                    Log.d(AD_LOG_TAG, "Rewarded Interstitial ad loaded successfully.")
+                    mRewardedInterstitialAd = ad
+                    isRewardedInterstitialLoading = false
+                    setRewardedInterstitialAdCallbacks()
+                }
+            }
+        )
+    }
+
+    private fun setRewardedInterstitialAdCallbacks() {
+        mRewardedInterstitialAd?.fullScreenContentCallback = object : FullScreenContentCallback() {
+            override fun onAdDismissedFullScreenContent() {
+                Log.d(AD_LOG_TAG, "Rewarded Interstitial ad was dismissed.")
+                mRewardedInterstitialAd = null
+                loadRewardedInterstitialAd()
+            }
+
+            override fun onAdFailedToShowFullScreenContent(adError: AdError) {
+                Log.e(AD_LOG_TAG, "Rewarded Interstitial ad failed to show: ${adError.message} (Code: ${adError.code})")
+                mRewardedInterstitialAd = null
+                loadRewardedInterstitialAd()
+            }
+
+            override fun onAdShowedFullScreenContent() {
+                Log.d(AD_LOG_TAG, "Rewarded Interstitial ad showed.")
+            }
+        }
+    }
+
+    private fun showRewardedInterstitialAdForDailyBonus(onRewardEarned: (Boolean) -> Unit) {
+        if (mRewardedInterstitialAd != null) {
+            mRewardedInterstitialAd?.show(this) { rewardItem ->
+                Log.d(AD_LOG_TAG, "User earned reward from Rewarded Interstitial: ${rewardItem.amount} ${rewardItem.type}")
+                onRewardEarned(true) // Indicate that reward was earned
+            }
+        } else {
+            Log.d(AD_LOG_TAG, "Rewarded Interstitial ad not ready. Loading status: ${if (isRewardedInterstitialLoading) "Loading" else "Not loading"}")
+            if (!isRewardedInterstitialLoading) {
+                loadRewardedInterstitialAd()
+            }
+            onRewardEarned(false) // Indicate that reward was not earned (ad not ready)
+        }
+    }
+
     private fun loadNativeAd() {
         if (isNativeAdLoading || mNativeAd != null) return
 
@@ -347,6 +418,7 @@ fun MainAppScreen(
     userViewModel: UserViewModel,
     onShowInterstitialAd: () -> Unit,
     onShowRewardedAd: (onRewardEarned: (Int) -> Unit) -> Unit,
+    onShowRewardedInterstitialAdForDailyBonus: (onRewardEarned: (Boolean) -> Unit) -> Unit, // New parameter
     darkTheme: Boolean,
     onToggleTheme: () -> Unit,
     nativeAd: NativeAd?, // Pass native ad
@@ -355,6 +427,16 @@ fun MainAppScreen(
     val navController = rememberNavController()
     val userUiState by userViewModel.uiState.collectAsState()
     val context = LocalContext.current
+
+    // State to control the visibility of the daily bonus dialog
+    var showDailyBonusDialog by remember { mutableStateOf(false) }
+
+    // Listen for daily bonus availability and show dialog
+    LaunchedEffect(userUiState.dailyBonusAvailable) {
+        if (userUiState.dailyBonusAvailable) {
+            showDailyBonusDialog = true
+        }
+    }
 
     // Listen for navigation changes to trigger interstitial ads
     LaunchedEffect(navController) {
@@ -536,10 +618,14 @@ fun MainAppScreen(
                             onNavigateToPremium = { navController.navigate(Screen.Premium.route) }, // Navigate to premium from here
                             nativeAd = nativeAd, // Pass native ad
                             showNativeAd = !isPremiumUser ,
-                            isPremiumUser = isPremiumUser
-
-
-                            )
+                            isPremiumUser = isPremiumUser,
+                            dailyBonusAvailable = userUiState.dailyBonusAvailable, // Pass daily bonus state
+                            dailyBonusAmount = userUiState.dailyBonusAmount, // Pass daily bonus amount
+                            dailyStreak = userUiState.dailyStreak, // Pass daily streak
+                            onClaimDailyBonus = {
+                                showDailyBonusDialog = true // Trigger dialog from GainCoinsScreen
+                            }
+                        )
                     }
                     composable(Screen.Redeem.route) {
                         RedeemCodeScreen(
@@ -576,6 +662,36 @@ fun MainAppScreen(
                 }
             }
         }
+    }
+
+    // Daily Bonus Dialog
+    if (showDailyBonusDialog && userUiState.dailyBonusAvailable) {
+        AlertDialog(
+            onDismissRequest = { showDailyBonusDialog = false },
+            title = { Text("Daily Login Bonus!") },
+            text = { Text("Claim your daily bonus of ${userUiState.dailyBonusAmount} coins! Current streak: ${userUiState.dailyStreak + 1} days.") },
+            confirmButton = {
+                Button(onClick = {
+                    // Attempt to show rewarded interstitial ad
+                    onShowRewardedInterstitialAdForDailyBonus { adWatchedAndRewarded ->
+                        if (adWatchedAndRewarded) {
+                            userViewModel.claimDailyBonus()
+                            showDailyBonusDialog = false // Dismiss dialog after successful claim
+                        } else {
+                            // Ad not watched or not ready, keep dialog open or show a message
+                            context.showToast("Ad not ready or not watched. Please try again.")
+                        }
+                    }
+                }) {
+                    Text("Claim Now!")
+                }
+            },
+            dismissButton = {
+                Button(onClick = { showDailyBonusDialog = false }) {
+                    Text("Later")
+                }
+            }
+        )
     }
 }
 
