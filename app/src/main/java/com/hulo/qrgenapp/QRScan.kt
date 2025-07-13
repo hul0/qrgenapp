@@ -368,7 +368,7 @@ fun QRScanScreen(
     isPremiumUser: Boolean,
     showToast: (String) -> Unit,
     nativeAd: NativeAd?,
-    showNativeAd: Boolean
+    showAd: Boolean // Renamed from showNativeAd for consistency
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
@@ -450,12 +450,13 @@ fun QRScanScreen(
                     IconButton(
                         onClick = { imagePickerLauncher.launch("image/*") },
                         modifier = Modifier
-                            .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.7f), CircleShape) // Themed background
+                            .size(48.dp) // Larger icon button
                     ) {
                         Icon(
                             imageVector = Icons.Default.Image,
                             contentDescription = "Import QR Code from Image",
-                            tint = Color.White
+                            tint = MaterialTheme.colorScheme.onSurface // Themed tint
                         )
                     }
 
@@ -463,12 +464,13 @@ fun QRScanScreen(
                         IconButton(
                             onClick = { isFlashlightOn = !isFlashlightOn },
                             modifier = Modifier
-                                .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.7f), CircleShape) // Themed background
+                                .size(48.dp) // Larger icon button
                         ) {
                             Icon(
                                 imageVector = if (isFlashlightOn) Icons.Default.FlashlightOn else Icons.Default.FlashlightOff,
                                 contentDescription = "Toggle Flashlight",
-                                tint = Color.White
+                                tint = MaterialTheme.colorScheme.onSurface // Themed tint
                             )
                         }
                     }
@@ -478,13 +480,13 @@ fun QRScanScreen(
                     Box(
                         modifier = Modifier
                             .align(Alignment.Center)
-                            .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
-                            .padding(horizontal = 20.dp, vertical = 10.dp)
+                            .background(MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.8f), RoundedCornerShape(16.dp)) // Themed background, more rounded
+                            .padding(horizontal = 24.dp, vertical = 12.dp) // Increased padding
                     ) {
                         Text(
                             text = "Next coins in ${uiState.coinCooldownRemaining}s",
-                            color = Color.White,
-                            fontSize = 16.sp,
+                            color = MaterialTheme.colorScheme.onSurface, // Themed color
+                            style = MaterialTheme.typography.titleMedium, // Larger text
                             fontWeight = FontWeight.Bold
                         )
                     }
@@ -618,20 +620,20 @@ fun EnhancedScanResultDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        icon = { Icon(Icons.Default.Info, contentDescription = "Info") },
-        title = { Text("Code Scanned!") },
+        icon = { Icon(Icons.Default.Info, contentDescription = "Info", tint = MaterialTheme.colorScheme.primary) }, // Themed icon tint
+        title = { Text("Code Scanned!", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold) }, // Styled title
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) { // Increased spacing
                 Text(
                     "Type: ${result.type.name.replace("_", " ").lowercase().replaceFirstChar { it.uppercase() }}",
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.titleLarge, // Larger text
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
                 )
                 SelectionContainer {
                     Text(
                         result.rawValue,
-                        style = MaterialTheme.typography.bodyLarge,
+                        style = MaterialTheme.typography.bodyLarge, // Larger text
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
@@ -640,30 +642,30 @@ fun EnhancedScanResultDialog(
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f) // More opaque
                         ),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(16.dp) // More rounded
                     ) {
                         Row(
-                            modifier = Modifier.padding(12.dp),
+                            modifier = Modifier.padding(16.dp), // Increased padding
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Icon(
                                 Icons.Default.Star,
                                 contentDescription = "Premium Tip",
                                 tint = MaterialTheme.colorScheme.secondary,
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(32.dp) // Larger icon
                             )
-                            Spacer(Modifier.width(8.dp))
+                            Spacer(Modifier.width(12.dp)) // Increased spacing
                             Column {
                                 Text(
                                     "Premium Tip",
-                                    style = MaterialTheme.typography.labelLarge,
+                                    style = MaterialTheme.typography.titleMedium, // Larger text
                                     fontWeight = FontWeight.Bold
                                 )
                                 Text(
                                     "Your scan history is limited. Go Premium for unlimited history!",
-                                    style = MaterialTheme.typography.bodySmall,
+                                    style = MaterialTheme.typography.bodyLarge, // Larger text
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
@@ -679,16 +681,16 @@ fun EnhancedScanResultDialog(
                     context.showToast("Copied to clipboard")
                     onDismiss()
                 },
-                shape = RoundedCornerShape(8.dp),
+                shape = RoundedCornerShape(12.dp), // More rounded
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
             ) {
-                Icon(Icons.Default.ContentCopy, contentDescription = "Copy", modifier = Modifier.size(18.dp))
+                Icon(Icons.Default.ContentCopy, contentDescription = "Copy", modifier = Modifier.size(24.dp)) // Larger icon
                 Spacer(Modifier.width(8.dp))
-                Text("Copy")
+                Text("Copy", style = MaterialTheme.typography.titleMedium) // Larger text
             }
         },
         dismissButton = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) { // Increased spacing
                 if (result.type == QRDataProcessor.QRContentType.URL) {
                     Button(
                         onClick = {
@@ -696,17 +698,17 @@ fun EnhancedScanResultDialog(
                             context.startActivity(intent)
                             onDismiss()
                         },
-                        shape = RoundedCornerShape(8.dp),
+                        shape = RoundedCornerShape(12.dp), // More rounded
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
                     ) {
-                        Icon(Icons.Default.Link, contentDescription = "Open Link", modifier = Modifier.size(18.dp))
+                        Icon(Icons.Default.Link, contentDescription = "Open Link", modifier = Modifier.size(24.dp)) // Larger icon
                         Spacer(Modifier.width(8.dp))
-                        Text("Open Link")
+                        Text("Open Link", style = MaterialTheme.typography.titleMedium) // Larger text
                     }
                 }
 
                 TextButton(onClick = onDismiss) {
-                    Text("Close")
+                    Text("Close", style = MaterialTheme.typography.titleMedium) // Larger text
                 }
             }
         }
@@ -718,27 +720,27 @@ fun ScannerOverlay() {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(16.dp),
+            .padding(24.dp), // Increased padding
         contentAlignment = Alignment.Center
     ) {
         Box(
             modifier = Modifier
-                .size(280.dp)
+                .size(300.dp) // Larger scan area
                 .background(Color.Transparent)
-                .border(4.dp, Color.White.copy(alpha = 0.8f), RoundedCornerShape(24.dp))
-                .clip(RoundedCornerShape(24.dp))
+                .border(6.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.8f), RoundedCornerShape(32.dp)) // Themed border, more rounded, thicker
+                .clip(RoundedCornerShape(32.dp))
         )
         Text(
             text = "Point your camera at a QR code or barcode",
-            color = Color.White,
-            fontSize = 18.sp,
+            color = MaterialTheme.colorScheme.onPrimary, // Themed color
+            style = MaterialTheme.typography.titleLarge, // Larger text
             fontWeight = FontWeight.Bold,
             textAlign = TextAlign.Center,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
-                .padding(bottom = 64.dp)
-                .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
-                .padding(horizontal = 20.dp, vertical = 10.dp)
+                .padding(bottom = 80.dp) // Increased padding
+                .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.7f), RoundedCornerShape(16.dp)) // Themed background, more rounded
+                .padding(horizontal = 24.dp, vertical = 12.dp) // Increased padding
         )
     }
 }
@@ -756,31 +758,31 @@ fun PermissionDeniedScreen(onRequestPermission: () -> Unit) {
         Icon(
             imageVector = Icons.Default.Warning,
             contentDescription = "Permission Denied",
-            modifier = Modifier.size(96.dp),
+            modifier = Modifier.size(120.dp), // Larger icon
             tint = MaterialTheme.colorScheme.error
         )
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(32.dp)) // Increased spacer
         Text(
             text = "Camera Access Needed",
-            style = MaterialTheme.typography.headlineSmall,
+            style = MaterialTheme.typography.headlineMedium, // Larger headline
             textAlign = TextAlign.Center,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onBackground
         )
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(16.dp)) // Increased spacer
         Text(
             text = "To scan QR codes and barcodes, this app requires camera permission. Please grant access to continue.",
-            style = MaterialTheme.typography.bodyLarge,
+            style = MaterialTheme.typography.bodyLarge, // Larger text
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(48.dp)) // Increased spacer
         Button(
             onClick = onRequestPermission,
-            shape = RoundedCornerShape(12.dp),
-            contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
+            shape = RoundedCornerShape(16.dp), // More rounded
+            contentPadding = PaddingValues(horizontal = 32.dp, vertical = 16.dp) // Increased padding
         ) {
-            Text("Grant Camera Permission", style = MaterialTheme.typography.titleMedium)
+            Text("Grant Camera Permission", style = MaterialTheme.typography.titleLarge) // Larger text
         }
     }
 }

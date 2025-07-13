@@ -26,7 +26,8 @@ data class UserUiState(
     val dailyStreak: Int = 0, // New: Daily login streak (0-6 for weekly cycle)
     val dailyBonusAvailable: Boolean = false, // New: Flag for daily bonus availability
     val dailyBonusAmount: Int = 0, // New: Amount of daily bonus coins
-    val dailyBonusPattern: List<Int> = emptyList() // New: Expose the daily bonus pattern
+    val dailyBonusPattern: List<Int> = emptyList(), // New: Expose the daily bonus pattern
+    val firstUpdateWarningTime: Long = 0L // New: Timestamp for the first update warning
 )
 
 class UserViewModel(private val userPreferences: UserPreferences) : ViewModel() {
@@ -37,8 +38,8 @@ class UserViewModel(private val userPreferences: UserPreferences) : ViewModel() 
     // Constants for redeem code and premium
     companion object {
         private const val PREMIUM_COST_DIAMONDS = 1000
-        private const val REDEEM_CODE_NEW_LAUNCH = "TEST69Hulo"
-        private const val REDEEM_REWARD_DIAMONDS = 1000
+        private const val REDEEM_CODE_NEW_LAUNCH = "Test"
+        private const val REDEEM_REWARD_DIAMONDS = 100
         private const val REDEEM_SALT = "qrwiz_salt_2025_v1" // Salt for hashing
 
         // Daily bonus coin pattern (7 days for a weekly reset)
@@ -62,6 +63,8 @@ class UserViewModel(private val userPreferences: UserPreferences) : ViewModel() 
                     // Initialize daily login preferences
                     userPreferences.setLastLoginDate(null)
                     userPreferences.setDailyStreak(0) // Start streak at 0
+                    // Initialize update warning time
+                    userPreferences.clearFirstUpdateWarningTime() // Ensure it's clear on first launch
 
                     _uiState.update {
                         it.copy(
@@ -71,7 +74,8 @@ class UserViewModel(private val userPreferences: UserPreferences) : ViewModel() 
                             lastLoginDate = null,
                             dailyStreak = 0,
                             isLoading = false,
-                            dailyBonusPattern = DAILY_BONUS_COINS // Initialize pattern
+                            dailyBonusPattern = DAILY_BONUS_COINS, // Initialize pattern
+                            firstUpdateWarningTime = userPreferences.getFirstUpdateWarningTime() // Load update warning time
                         )
                     }
                 } else {
@@ -83,6 +87,7 @@ class UserViewModel(private val userPreferences: UserPreferences) : ViewModel() 
                     val currentScanHistory = userPreferences.getScanHistory()
                     val lastLoginDate = userPreferences.getLastLoginDate()
                     val dailyStreak = userPreferences.getDailyStreak()
+                    val firstUpdateWarningTime = userPreferences.getFirstUpdateWarningTime() // Load update warning time
 
                     _uiState.update {
                         it.copy(
@@ -94,7 +99,8 @@ class UserViewModel(private val userPreferences: UserPreferences) : ViewModel() 
                             lastLoginDate = lastLoginDate,
                             dailyStreak = dailyStreak,
                             isLoading = false,
-                            dailyBonusPattern = DAILY_BONUS_COINS // Initialize pattern
+                            dailyBonusPattern = DAILY_BONUS_COINS, // Initialize pattern
+                            firstUpdateWarningTime = firstUpdateWarningTime // Update UI state with loaded time
                         )
                     }
                 }
@@ -198,7 +204,7 @@ class UserViewModel(private val userPreferences: UserPreferences) : ViewModel() 
 
     fun addScanToHistory(scanResult: String) {
         viewModelScope.launch {
-            userPreferences.addScanToHistory(scanResult, _uiState.value.isPremium)
+            userPreferences.addScanToHistory(scanResult, _uiState.value.isPremium) // Use userPreferences.isPremium()
             _uiState.update { it.copy(scanHistory = userPreferences.getScanHistory()) }
         }
     }

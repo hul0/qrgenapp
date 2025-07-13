@@ -21,6 +21,9 @@ class UserPreferences(context: Context) {
         private const val KEY_LAST_LOGIN_DATE = "last_login_date"
         private const val KEY_DAILY_STREAK = "daily_streak"
 
+        // New key for app update warning time
+        private const val KEY_FIRST_UPDATE_WARNING_TIME = "first_update_warning_time"
+
         // Define the default starting coins and diamonds
         const val DEFAULT_STARTING_COINS = 0 // Changed to 0 as per new logic
         const val DEFAULT_STARTING_DIAMONDS = 0 // New: Default diamonds
@@ -124,5 +127,30 @@ class UserPreferences(context: Context) {
     // New: Set daily streak
     fun setDailyStreak(streak: Int) {
         preferences.edit { putInt(KEY_DAILY_STREAK, streak) }
+    }
+
+    // --- New methods for app update warning time ---
+
+    /**
+     * Retrieves the timestamp (in milliseconds) when the first update warning was shown.
+     * Returns 0L if no warning has been shown yet.
+     */
+    fun getFirstUpdateWarningTime(): Long {
+        return preferences.getLong(KEY_FIRST_UPDATE_WARNING_TIME, 0L)
+    }
+
+    /**
+     * Sets the timestamp (in milliseconds) when the first update warning was shown.
+     */
+    fun setFirstUpdateWarningTime(timeMillis: Long) {
+        preferences.edit { putLong(KEY_FIRST_UPDATE_WARNING_TIME, timeMillis) }
+    }
+
+    /**
+     * Clears the stored timestamp for the first update warning.
+     * This should be called when the app is successfully updated.
+     */
+    fun clearFirstUpdateWarningTime() {
+        preferences.edit { remove(KEY_FIRST_UPDATE_WARNING_TIME) }
     }
 }

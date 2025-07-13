@@ -43,7 +43,7 @@ fun RedeemCodeScreen(
     userViewModel: UserViewModel,
     showToast: (String) -> Unit,
     nativeAd: NativeAd?, // New: Native Ad
-    showNativeAd: Boolean // New: Control native ad visibility
+    showAd: Boolean // New: Control native ad visibility (renamed from showNativeAd for consistency)
 ) {
     val uiState by userViewModel.uiState.collectAsState()
     var redeemCodeInput by remember { mutableStateOf(TextFieldValue("")) }
@@ -53,63 +53,69 @@ fun RedeemCodeScreen(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 12.dp), // Overall smaller horizontal padding
+            .padding(horizontal = 16.dp), // Overall horizontal padding
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Top
     ) {
-        // Banner Ad at the top of the screen
-        if (showNativeAd) { // showNativeAd is true if not premium
-
-            Spacer(modifier = Modifier.height(8.dp)) // Small spacer after ad
+        // Native Ad Section (moved to top for consistent placement with other screens)
+        if (showAd) {
+            Spacer(modifier = Modifier.height(16.dp)) // Spacer before ad
+            NativeAdViewComposable(
+                nativeAd = nativeAd,
+                showAd = showAd,
+                modifier = Modifier.fillMaxWidth() // Ensure it fills width
+            )
+            Spacer(modifier = Modifier.height(16.dp)) // Spacer after ad
+        } else {
+            Spacer(modifier = Modifier.height(32.dp)) // Larger top spacer if no ad
         }
 
-        Spacer(modifier = Modifier.height(16.dp)) // Smaller top spacer
 
         Icon(
             imageVector = Icons.Default.Diamond,
             contentDescription = "Redeem Diamonds",
-            modifier = Modifier.size(80.dp), // Smaller icon
+            modifier = Modifier.size(96.dp), // Larger icon
             tint = MaterialTheme.colorScheme.tertiary
         )
-        Spacer(modifier = Modifier.height(12.dp)) // Smaller spacer
+        Spacer(modifier = Modifier.height(16.dp)) // Increased spacer
         Text(
             text = "Redeem Your Code",
-            style = MaterialTheme.typography.headlineSmall, // Smaller headline
+            style = MaterialTheme.typography.headlineMedium, // Larger headline
             fontWeight = FontWeight.ExtraBold,
             color = MaterialTheme.colorScheme.onBackground,
             textAlign = TextAlign.Center
         )
-        Spacer(modifier = Modifier.height(6.dp)) // Smaller spacer
+        Spacer(modifier = Modifier.height(8.dp)) // Increased spacer
         Text(
             text = "Enter a special redeem code to earn Diamonds!",
-            style = MaterialTheme.typography.bodyMedium, // Smaller text
+            style = MaterialTheme.typography.bodyLarge, // Larger text
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
-            modifier = Modifier.padding(horizontal = 12.dp) // Smaller horizontal padding
+            modifier = Modifier.padding(horizontal = 16.dp) // Increased horizontal padding
         )
-        Spacer(modifier = Modifier.height(24.dp)) // Smaller spacer
+        Spacer(modifier = Modifier.height(32.dp)) // Increased spacer
 
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 4.dp), // Smaller horizontal padding
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.9f)) // Transparent feel
+                .padding(horizontal = 8.dp), // Increased horizontal padding
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Increased elevation
+            shape = RoundedCornerShape(20.dp), // More rounded
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.95f)) // Less transparent, more solid
         ) {
             Column(
-                modifier = Modifier.padding(16.dp), // Smaller padding
+                modifier = Modifier.padding(20.dp), // Increased padding
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp) // Smaller spacing
+                verticalArrangement = Arrangement.spacedBy(16.dp) // Increased spacing
             ) {
                 OutlinedTextField(
                     value = redeemCodeInput,
                     onValueChange = { redeemCodeInput = it },
-                    label = { Text("Enter Redeem Code", style = MaterialTheme.typography.bodySmall) }, // Smaller label
+                    label = { Text("Enter Redeem Code", style = MaterialTheme.typography.bodyLarge) }, // Larger label
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
-                    shape = RoundedCornerShape(10.dp), // Slightly less rounded
-                    leadingIcon = { Icon(Icons.Filled.CardGiftcard, contentDescription = "Redeem Code", modifier = Modifier.size(20.dp)) } // Smaller icon
+                    shape = RoundedCornerShape(12.dp), // More rounded
+                    leadingIcon = { Icon(Icons.Filled.CardGiftcard, contentDescription = "Redeem Code", modifier = Modifier.size(24.dp)) } // Larger icon
                 )
 
                 Button(
@@ -124,18 +130,18 @@ fun RedeemCodeScreen(
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(50.dp), // Smaller button height
-                    shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.9f)), // Transparent feel
-                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp) // Smaller elevation
+                        .height(56.dp), // Larger button height
+                    shape = RoundedCornerShape(16.dp), // More rounded
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary), // Solid primary color
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp) // Increased elevation
                 ) {
-                    Text("REDEEM CODE", style = MaterialTheme.typography.titleSmall) // Smaller text
+                    Text("REDEEM CODE", style = MaterialTheme.typography.titleLarge) // Larger text
                 }
 
                 if (redeemMessage.isNotBlank()) {
                     Text(
                         text = redeemMessage,
-                        style = MaterialTheme.typography.bodyMedium, // Smaller text
+                        style = MaterialTheme.typography.bodyLarge, // Larger text
                         color = if (redeemMessage.contains("Successfully")) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.error,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth()
@@ -144,47 +150,40 @@ fun RedeemCodeScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp)) // Smaller spacer
-
-        // Native Ad Section
-        NativeAdViewComposable(
-            nativeAd = nativeAd,
-            showAd = showNativeAd
-        )
-        Spacer(modifier = Modifier.height(24.dp)) // Small spacer after ad
+        Spacer(modifier = Modifier.height(32.dp)) // Increased spacer
 
         // Current Diamond Balance Section
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 4.dp), // Smaller horizontal padding
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.9f)), // Transparent feel
-            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+                .padding(horizontal = 8.dp), // Increased horizontal padding
+            shape = RoundedCornerShape(20.dp), // More rounded
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.95f)), // Less transparent, more solid
+            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp) // Increased elevation
         ) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp), // Smaller padding
+                    .padding(20.dp), // Increased padding
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
             ) {
                 Icon(
                     imageVector = Icons.Default.Diamond,
                     contentDescription = "Current Diamond Balance",
-                    modifier = Modifier.size(28.dp), // Smaller icon
+                    modifier = Modifier.size(36.dp), // Larger icon
                     tint = MaterialTheme.colorScheme.onTertiaryContainer
                 )
-                Spacer(modifier = Modifier.width(6.dp)) // Smaller spacer
+                Spacer(modifier = Modifier.width(8.dp)) // Increased spacer
                 Text(
                     text = "Your Current Diamonds: ${uiState.diamonds}",
-                    style = MaterialTheme.typography.titleMedium, // Smaller text
+                    style = MaterialTheme.typography.headlineSmall, // Larger text
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onTertiaryContainer,
                     textAlign = TextAlign.Center
                 )
             }
         }
-        Spacer(modifier = Modifier.height(16.dp)) // Smaller bottom spacer
+        Spacer(modifier = Modifier.height(24.dp)) // Increased bottom spacer
     }
 }

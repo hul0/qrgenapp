@@ -1,9 +1,14 @@
 package com.hulo.qrgenapp
 
+import android.app.Activity
+import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import android.util.Log
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -44,7 +49,6 @@ import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -57,6 +61,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color // Import Color
+import androidx.compose.ui.graphics.Color.Companion.LightGray
+import androidx.compose.ui.graphics.Color.Companion.White
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -85,150 +92,252 @@ import com.google.android.gms.ads.rewarded.RewardedAd
 import com.google.android.gms.ads.rewarded.RewardedAdLoadCallback
 import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAd
 import com.google.android.gms.ads.rewardedinterstitial.RewardedInterstitialAdLoadCallback
-import com.hulo.qrgenapp.ui.theme.QRGenAppTheme
+import com.hulo.qrgenapp.ui.theme.QRGenAppTheme // Keep this import if it defines other theme aspects not related to colors
+
+// In-app update imports
+import com.google.android.play.core.appupdate.AppUpdateInfo
+import com.google.android.play.core.appupdate.AppUpdateManager
+import com.google.android.play.core.appupdate.AppUpdateManagerFactory
+import com.google.android.play.core.appupdate.AppUpdateOptions
+import com.google.android.play.core.install.InstallStateUpdatedListener
+import com.google.android.play.core.install.model.AppUpdateType
+import com.google.android.play.core.install.model.InstallStatus
+import com.google.android.play.core.install.model.UpdateAvailability
 
 // IMPORTANT: Use Google's TEST Ad Unit IDs for development and testing.
 // Replace these with your actual production IDs ONLY when your app is published.
-// Removed BANNER_AD_UNIT_ID_TOP and BANNER_AD_UNIT_ID_BOTTOM as banners will be placed per screen.
 private const val INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-3940256099942544/1033173712" // Google's Test Interstitial Ad Unit ID
 private const val REWARDED_AD_UNIT_ID = "ca-app-pub-3940256099942544/5224354917" // Google's Test Rewarded Ad Unit ID
 private const val REWARDED_INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-3940256099942544/5354046379" // Google's Test Rewarded Interstitial Ad Unit ID
 private const val NATIVE_AD_UNIT_ID = "ca-app-pub-3940256099942544/2247696110" // Google's Test Native Ad Unit ID
 private const val BANNER_AD_UNIT_ID = "ca-app-pub-3940256099942544/6300978111" // Google's Test Banner Ad Unit ID
 private const val AD_LOG_TAG = "AdMob"
+private const val APP_UPDATE_TAG = "AppUpdate"
+
+// Constants for in-app updates
+private const val MANDATORY_UPDATE_STALENESS_DAYS = 7
+private const val HIGH_PRIORITY_UPDATE = 4 // Priority 4 and 5 are considered high
 
 class MainActivity : ComponentActivity() {
 
     private val qrGenViewModel: QRGenViewModel by viewModels()
     private val qrScanViewModel: QRScanViewModel by viewModels()
-    private lateinit var userViewModel: UserViewModel // Initialize UserViewModel later with context
+    private lateinit var userViewModel: UserViewModel
 
     private var mInterstitialAd: InterstitialAd? = null
     private var mRewardedAd: RewardedAd? = null
-    private var mRewardedInterstitialAd: RewardedInterstitialAd? = null // New: Rewarded Interstitial Ad
-    private var mNativeAd: NativeAd? = null // New: Native Ad instance
+    private var mRewardedInterstitialAd: RewardedInterstitialAd? = null
+    private var mNativeAd: NativeAd? = null
 
-    // Declared userActionCount here
     private var userActionCount = 0
     private var lastInterstitialTime = 0L
-    private val minInterstitialInterval = 40000L // 5 seconds minimum between interstitials
-    private val actionsBeforeInterstitial = 7 // Show interstitial after 5 user actions (screen switches)
+    private val minInterstitialInterval = 40000L // 40 seconds
+    private val actionsBeforeInterstitial = 7
 
     private var isInterstitialLoading = false
     private var isRewardedLoading = false
-    private var isRewardedInterstitialLoading = false // New: Rewarded Interstitial loading state
-    private var isNativeAdLoading = false // New: Native ad loading state
+    private var isRewardedInterstitialLoading = false
+    private var isNativeAdLoading = false
+
+    // In-app update variables
+    private lateinit var appUpdateManager: AppUpdateManager
+    private var updateListener: InstallStateUpdatedListener? = null
+
+    // Modern way to handle Activity results for in-app updates
+    private val appUpdateResultLauncher = registerForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        if (result.resultCode != Activity.RESULT_OK) {
+            Log.w(APP_UPDATE_TAG, "Update flow failed! Result code: ${result.resultCode}")
+            // If an immediate update is cancelled, we should force the user to update.
+            Toast.makeText(this, "Update is required to continue.", Toast.LENGTH_LONG).show()
+            finish() // Close the app if a mandatory update is not accepted.
+        } else {
+            Log.d(APP_UPDATE_TAG, "Update successful or in progress.")
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        // Initialize UserPreferences and UserViewModel
         val userPreferences = UserPreferences(applicationContext)
         userViewModel = UserViewModel(userPreferences)
 
-        MobileAds.initialize(this) { initializationStatus ->
-            Log.d(AD_LOG_TAG, "Mobile Ads SDK Initialized: $initializationStatus")
+        // Initialize AppUpdateManager
+        appUpdateManager = AppUpdateManagerFactory.create(applicationContext)
+
+        // Create a listener to track the state of flexible updates.
+        updateListener = InstallStateUpdatedListener { state ->
+            if (state.installStatus() == InstallStatus.DOWNLOADED) {
+                // An update has been downloaded.
+                Log.d(APP_UPDATE_TAG, "Flexible update downloaded. Prompting user to complete.")
+                // Show a notification to the user to complete the update.
+                popupSnackbarForCompleteUpdate()
+            } else if (state.installStatus() == InstallStatus.FAILED) {
+                Log.e(APP_UPDATE_TAG, "Update failed with error code: ${state.installErrorCode()}")
+            }
+        }
+        appUpdateManager.registerListener(updateListener!!)
+
+        // Check for app updates on launch
+        checkForAppUpdates()
+
+        MobileAds.initialize(this) {
+            Log.d(AD_LOG_TAG, "Mobile Ads SDK Initialized.")
             loadInterstitialAd()
-            AdEventLogger.logInterstitialShown()
             loadRewardedAd()
-            loadRewardedInterstitialAd() // Load rewarded interstitial ad on app start
-            loadNativeAd() // Load native ad on app start
+            loadRewardedInterstitialAd()
+            loadNativeAd()
         }
 
         setContent {
-            var darkTheme by remember { mutableStateOf(false) } // State for dark mode toggle
-            val userUiState by userViewModel.uiState.collectAsState() // Observe premium status
+            var darkTheme by remember { mutableStateOf(false) }
+            val userUiState by userViewModel.uiState.collectAsState()
 
-
-            QRGenAppTheme(darkTheme = darkTheme) { // Apply the custom theme
-                Surface(
+            QRGenAppTheme(darkTheme = darkTheme) {
+                androidx.compose.material3.Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background
+                    color = Color(0xFF6200EE)
                 ) {
                     MainAppScreen(
                         qrGenViewModel = qrGenViewModel,
                         qrScanViewModel = qrScanViewModel,
-                        userViewModel = userViewModel, // Pass UserViewModel
+                        userViewModel = userViewModel,
                         onShowInterstitialAd = {
-                            // Only show interstitial if not premium
                             if (!userUiState.isPremium) {
                                 userActionCount++
                                 showInterstitialAdSmart()
                             }
                         },
                         onShowRewardedAd = ::showRewardedAd,
-                        onShowRewardedInterstitialAdForDailyBonus = ::showRewardedInterstitialAdForDailyBonus, // Pass new ad function
+                        onShowRewardedInterstitialAdForDailyBonus = ::showRewardedInterstitialAdForDailyBonus,
                         darkTheme = darkTheme,
-                        onToggleTheme = { darkTheme = !darkTheme }, // Pass toggle function
-                        nativeAd = mNativeAd, // Pass native ad to composable
-                        isPremiumUser = userUiState.isPremium // Pass premium status
+                        onToggleTheme = { darkTheme = !darkTheme },
+                        nativeAd = mNativeAd,
+                        isPremiumUser = userUiState.isPremium
                     )
                 }
             }
         }
     }
 
+    private fun checkForAppUpdates() {
+        val appUpdateInfoTask = appUpdateManager.appUpdateInfo
+
+        appUpdateInfoTask.addOnSuccessListener { appUpdateInfo ->
+            val isUpdateAvailable = appUpdateInfo.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE
+            if (isUpdateAvailable) {
+                // Determine if the update is mandatory (immediate)
+                val stalenessDays = appUpdateInfo.clientVersionStalenessDays() ?: 0
+                val isImmediateUpdate = appUpdateInfo.isUpdateTypeAllowed(AppUpdateType.IMMEDIATE) &&
+                        (appUpdateInfo.updatePriority() >= HIGH_PRIORITY_UPDATE || stalenessDays >= MANDATORY_UPDATE_STALENESS_DAYS)
+
+                if (isImmediateUpdate) {
+                    Log.d(APP_UPDATE_TAG, "Starting IMMEDIATE update. Staleness: $stalenessDays days, Priority: ${appUpdateInfo.updatePriority()}")
+                    startUpdateFlow(appUpdateInfo, AppUpdateType.IMMEDIATE)
+                } else if (appUpdateInfo.isUpdateTypeAllowed(AppUpdateType.FLEXIBLE)) {
+                    Log.d(APP_UPDATE_TAG, "Starting FLEXIBLE update.")
+                    startUpdateFlow(appUpdateInfo, AppUpdateType.FLEXIBLE)
+                }
+            } else {
+                Log.d(APP_UPDATE_TAG, "No update available.")
+            }
+        }.addOnFailureListener { e ->
+            Log.e(APP_UPDATE_TAG, "App update check failed: ${e.message}")
+        }
+    }
+
+    private fun startUpdateFlow(appUpdateInfo: AppUpdateInfo, type: Int) {
+        appUpdateManager.startUpdateFlowForResult(
+            appUpdateInfo,
+            appUpdateResultLauncher,
+            AppUpdateOptions.newBuilder(type).build()
+        )
+    }
+
+    private fun popupSnackbarForCompleteUpdate() {
+        // A simple Toast is used here. In a real app, a Snackbar with an "RESTART" action is recommended.
+        Toast.makeText(
+            this,
+            "An update has just been downloaded.",
+            Toast.LENGTH_LONG
+        ).apply {
+            // In a real app, you'd have a button in the UI that calls appUpdateManager.completeUpdate()
+            // For simplicity, we'll complete it programmatically here after a short delay or on next resume.
+            view?.setOnClickListener {
+                appUpdateManager.completeUpdate()
+            }
+            show()
+        }
+        // As a fallback, you can also force the update on the next resume.
+    }
+
+    override fun onResume() {
+        super.onResume()
+        appUpdateManager.appUpdateInfo.addOnSuccessListener { appUpdateInfo ->
+            // If an immediate update is in progress, resume it.
+            if (appUpdateInfo.updateAvailability() == UpdateAvailability.DEVELOPER_TRIGGERED_UPDATE_IN_PROGRESS) {
+                Log.d(APP_UPDATE_TAG, "Resuming IMMEDIATE update flow.")
+                startUpdateFlow(appUpdateInfo, AppUpdateType.IMMEDIATE)
+            }
+            // If a flexible update has been downloaded, complete the installation.
+            else if (appUpdateInfo.installStatus() == InstallStatus.DOWNLOADED) {
+                Log.d(APP_UPDATE_TAG, "Flexible update downloaded on resume. Completing update.")
+                popupSnackbarForCompleteUpdate()
+            }
+        }
+    }
+
+    override fun onDestroy() {
+        updateListener?.let {
+            appUpdateManager.unregisterListener(it)
+        }
+        mNativeAd?.destroy()
+        super.onDestroy()
+    }
+
+    // --- Ad Loading and Showing Logic (Unchanged) ---
     private fun loadInterstitialAd() {
         if (isInterstitialLoading || mInterstitialAd != null) return
-
         isInterstitialLoading = true
         val adRequest = AdRequest.Builder().build()
-
-        InterstitialAd.load(
-            this,
-            INTERSTITIAL_AD_UNIT_ID,
-            adRequest,
-            object : InterstitialAdLoadCallback() {
-                override fun onAdFailedToLoad(adError: LoadAdError) {
-                    Log.e(AD_LOG_TAG, "Interstitial ad failed to load: ${adError.message} (Code: ${adError.code})")
-                    mInterstitialAd = null
-                    isInterstitialLoading = false
-                }
-
-                override fun onAdLoaded(interstitialAd: InterstitialAd) {
-                    Log.d(AD_LOG_TAG, "Interstitial ad loaded successfully.")
-                    AdEventLogger.logInterstitialShown()
-                    mInterstitialAd = interstitialAd
-                    isInterstitialLoading = false
-                    setInterstitialAdCallbacks()
-                }
+        InterstitialAd.load(this, INTERSTITIAL_AD_UNIT_ID, adRequest, object : InterstitialAdLoadCallback() {
+            override fun onAdFailedToLoad(adError: LoadAdError) {
+                Log.e(AD_LOG_TAG, "Interstitial ad failed to load: ${adError.message}")
+                mInterstitialAd = null
+                isInterstitialLoading = false
             }
-        )
+            override fun onAdLoaded(interstitialAd: InterstitialAd) {
+                Log.d(AD_LOG_TAG, "Interstitial ad loaded successfully.")
+                mInterstitialAd = interstitialAd
+                isInterstitialLoading = false
+                setInterstitialAdCallbacks()
+            }
+        })
     }
 
     private fun setInterstitialAdCallbacks() {
         mInterstitialAd?.fullScreenContentCallback = object : FullScreenContentCallback() {
             override fun onAdDismissedFullScreenContent() {
-                Log.d(AD_LOG_TAG, "Interstitial ad was dismissed.")
                 mInterstitialAd = null
                 lastInterstitialTime = System.currentTimeMillis()
-                userActionCount = 0 // Reset after showing an ad
+                userActionCount = 0
                 loadInterstitialAd()
             }
-
             override fun onAdFailedToShowFullScreenContent(adError: AdError) {
-                Log.e(AD_LOG_TAG, "Interstitial ad failed to show: ${adError.message} (Code: ${adError.code})")
                 mInterstitialAd = null
                 loadInterstitialAd()
             }
-
-            override fun onAdShowedFullScreenContent() {
-                Log.d(AD_LOG_TAG, "Interstitial ad showed.")
-            }
+            override fun onAdShowedFullScreenContent() {}
         }
     }
 
     private fun showInterstitialAdSmart() {
         val currentTime = System.currentTimeMillis()
         val timeSinceLastAd = currentTime - lastInterstitialTime
-
-        if (userActionCount >= actionsBeforeInterstitial &&
-            timeSinceLastAd >= minInterstitialInterval &&
-            mInterstitialAd != null
-        ) {
+        if (userActionCount >= actionsBeforeInterstitial && timeSinceLastAd >= minInterstitialInterval && mInterstitialAd != null) {
             mInterstitialAd?.show(this)
         } else {
-            Log.d(AD_LOG_TAG, "Interstitial ad not ready. Actions: $userActionCount, Time since last ad: ${timeSinceLastAd / 1000}s. Loading status: ${if (isInterstitialLoading) "Loading" else "Not loading"}")
             if (mInterstitialAd == null && !isInterstitialLoading) {
                 loadInterstitialAd()
             }
@@ -237,60 +346,42 @@ class MainActivity : ComponentActivity() {
 
     private fun loadRewardedAd() {
         if (isRewardedLoading || mRewardedAd != null) return
-
         isRewardedLoading = true
         val adRequest = AdRequest.Builder().build()
-
-        RewardedAd.load(
-            this,
-            REWARDED_AD_UNIT_ID,
-            adRequest,
-            object : RewardedAdLoadCallback() {
-                override fun onAdFailedToLoad(adError: LoadAdError) {
-                    Log.e(AD_LOG_TAG, "Rewarded ad failed to load: ${adError.message} (Code: ${adError.code})")
-                    mRewardedAd = null
-                    isRewardedLoading = false
-                }
-
-                override fun onAdLoaded(rewardedAd: RewardedAd) {
-                    Log.d(AD_LOG_TAG, "Rewarded ad loaded successfully.")
-                    mRewardedAd = rewardedAd
-                    isRewardedLoading = false
-                    setRewardedAdCallbacks()
-                }
+        RewardedAd.load(this, REWARDED_AD_UNIT_ID, adRequest, object : RewardedAdLoadCallback() {
+            override fun onAdFailedToLoad(adError: LoadAdError) {
+                mRewardedAd = null
+                isRewardedLoading = false
             }
-        )
+            override fun onAdLoaded(rewardedAd: RewardedAd) {
+                mRewardedAd = rewardedAd
+                isRewardedLoading = false
+                setRewardedAdCallbacks()
+            }
+        })
     }
 
     private fun setRewardedAdCallbacks() {
         mRewardedAd?.fullScreenContentCallback = object : FullScreenContentCallback() {
             override fun onAdDismissedFullScreenContent() {
-                Log.d(AD_LOG_TAG, "Rewarded ad was dismissed.")
                 mRewardedAd = null
                 loadRewardedAd()
             }
-
             override fun onAdFailedToShowFullScreenContent(adError: AdError) {
-                Log.e(AD_LOG_TAG, "Rewarded ad failed to show: ${adError.message} (Code: ${adError.code})")
                 mRewardedAd = null
                 loadRewardedAd()
             }
-
-            override fun onAdShowedFullScreenContent() {
-                Log.d(AD_LOG_TAG, "Rewarded ad showed.")
-            }
+            override fun onAdShowedFullScreenContent() {}
         }
     }
 
     private fun showRewardedAd(onRewardEarned: (Int) -> Unit = {}) {
         if (mRewardedAd != null) {
             mRewardedAd?.show(this) { rewardItem ->
-                Log.d(AD_LOG_TAG, "User earned reward: ${rewardItem.amount} ${rewardItem.type}")
-                userViewModel.addCoins(50) // Add 50 coins for watching rewarded ad
+                userViewModel.addCoins(50)
                 onRewardEarned(rewardItem.amount)
             }
         } else {
-            Log.d(AD_LOG_TAG, "Rewarded ad not ready. Loading status: ${if (isRewardedLoading) "Loading" else "Not loading"}")
             if (!isRewardedLoading) {
                 loadRewardedAd()
             }
@@ -299,113 +390,79 @@ class MainActivity : ComponentActivity() {
 
     private fun loadRewardedInterstitialAd() {
         if (isRewardedInterstitialLoading || mRewardedInterstitialAd != null) return
-
         isRewardedInterstitialLoading = true
         val adRequest = AdRequest.Builder().build()
-
-        RewardedInterstitialAd.load(
-            this,
-            REWARDED_INTERSTITIAL_AD_UNIT_ID,
-            adRequest,
-            object : RewardedInterstitialAdLoadCallback() {
-                override fun onAdFailedToLoad(adError: LoadAdError) {
-                    Log.e(AD_LOG_TAG, "Rewarded Interstitial ad failed to load: ${adError.message} (Code: ${adError.code})")
-                    mRewardedInterstitialAd = null
-                    isRewardedInterstitialLoading = false
-                }
-
-                override fun onAdLoaded(ad: RewardedInterstitialAd) {
-                    Log.d(AD_LOG_TAG, "Rewarded Interstitial ad loaded successfully.")
-                    mRewardedInterstitialAd = ad
-                    isRewardedInterstitialLoading = false
-                    setRewardedInterstitialAdCallbacks()
-                }
+        RewardedInterstitialAd.load(this, REWARDED_INTERSTITIAL_AD_UNIT_ID, adRequest, object : RewardedInterstitialAdLoadCallback() {
+            override fun onAdFailedToLoad(adError: LoadAdError) {
+                mRewardedInterstitialAd = null
+                isRewardedInterstitialLoading = false
             }
-        )
+            override fun onAdLoaded(ad: RewardedInterstitialAd) {
+                mRewardedInterstitialAd = ad
+                isRewardedInterstitialLoading = false
+                setRewardedInterstitialAdCallbacks()
+            }
+        })
     }
 
     private fun setRewardedInterstitialAdCallbacks() {
         mRewardedInterstitialAd?.fullScreenContentCallback = object : FullScreenContentCallback() {
             override fun onAdDismissedFullScreenContent() {
-                Log.d(AD_LOG_TAG, "Rewarded Interstitial ad was dismissed.")
                 mRewardedInterstitialAd = null
                 loadRewardedInterstitialAd()
             }
-
             override fun onAdFailedToShowFullScreenContent(adError: AdError) {
-                Log.e(AD_LOG_TAG, "Rewarded Interstitial ad failed to show: ${adError.message} (Code: ${adError.code})")
                 mRewardedInterstitialAd = null
                 loadRewardedInterstitialAd()
             }
-
-            override fun onAdShowedFullScreenContent() {
-                Log.d(AD_LOG_TAG, "Rewarded Interstitial ad showed.")
-            }
+            override fun onAdShowedFullScreenContent() {}
         }
     }
 
     private fun showRewardedInterstitialAdForDailyBonus(onRewardEarned: (Boolean) -> Unit) {
         if (mRewardedInterstitialAd != null) {
-            mRewardedInterstitialAd?.show(this) { rewardItem ->
-                Log.d(AD_LOG_TAG, "User earned reward from Rewarded Interstitial: ${rewardItem.amount} ${rewardItem.type}")
-                onRewardEarned(true) // Indicate that reward was earned
+            mRewardedInterstitialAd?.show(this) {
+                onRewardEarned(true)
             }
         } else {
-            Log.d(AD_LOG_TAG, "Rewarded Interstitial ad not ready. Loading status: ${if (isRewardedInterstitialLoading) "Loading" else "Not loading"}")
             if (!isRewardedInterstitialLoading) {
                 loadRewardedInterstitialAd()
             }
-            onRewardEarned(false) // Indicate that reward was not earned (ad not ready)
+            onRewardEarned(false)
         }
     }
 
     private fun loadNativeAd() {
         if (isNativeAdLoading || mNativeAd != null) return
-
         isNativeAdLoading = true
         val adLoader = AdLoader.Builder(this, NATIVE_AD_UNIT_ID)
             .forNativeAd { nativeAd ->
-                Log.d(AD_LOG_TAG, "Native ad loaded successfully.")
-                AdEventLogger.logNativeLoaded()
                 mNativeAd = nativeAd
                 isNativeAdLoading = false
             }
             .withAdListener(object : AdListener() {
                 override fun onAdFailedToLoad(adError: LoadAdError) {
-                    Log.e(AD_LOG_TAG, "Native ad failed to load: ${adError.message} (Code: ${adError.code})")
                     mNativeAd = null
                     isNativeAdLoading = false
-                }
-
-                override fun onAdLoaded() {
-                    Log.d(AD_LOG_TAG, "Native ad loaded.")
-                }
-
-                override fun onAdClicked() {
-                    Log.d(AD_LOG_TAG, "Native ad clicked.")
                 }
             })
             .withNativeAdOptions(NativeAdOptions.Builder().build())
             .build()
-
         adLoader.loadAd(AdRequest.Builder().build())
     }
-
-    override fun onDestroy() {
-        mNativeAd?.destroy()
-        super.onDestroy()
-    }
 }
+
+// --- Composable Screens (Unchanged) ---
 
 sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
     object Home : Screen("home", "Home", Icons.Default.Home)
     object Generate : Screen("generate", "Generate", Icons.Default.Create)
     object Scan : Screen("scan", "Scan", Icons.Default.QrCodeScanner)
     object GainCoins : Screen("gain_coins", "Coins", Icons.Default.MonetizationOn)
-    object Redeem : Screen("redeem", "Redeem", Icons.Default.CardGiftcard) // New screen for redeeming codes
-    object History : Screen("history", "History", Icons.Default.History) // New screen for history
+    object Redeem : Screen("redeem", "Redeem", Icons.Default.CardGiftcard)
+    object History : Screen("history", "History", Icons.Default.History)
     object About : Screen("about", "About", Icons.Default.Info)
-    object Premium : Screen("premium", "Premium", Icons.Default.Star) // New screen for premium purchase
+    object Premium : Screen("premium", "Premium", Icons.Default.Star)
 }
 
 val navItems = listOf(Screen.Home, Screen.Generate, Screen.Scan, Screen.GainCoins, Screen.Redeem, Screen.History, Screen.About)
@@ -418,27 +475,31 @@ fun MainAppScreen(
     userViewModel: UserViewModel,
     onShowInterstitialAd: () -> Unit,
     onShowRewardedAd: (onRewardEarned: (Int) -> Unit) -> Unit,
-    onShowRewardedInterstitialAdForDailyBonus: (onRewardEarned: (Boolean) -> Unit) -> Unit, // New parameter
+    onShowRewardedInterstitialAdForDailyBonus: (onRewardEarned: (Boolean) -> Unit) -> Unit,
     darkTheme: Boolean,
     onToggleTheme: () -> Unit,
-    nativeAd: NativeAd?, // Pass native ad
-    isPremiumUser: Boolean // Pass premium status
+    nativeAd: NativeAd?,
+    isPremiumUser: Boolean
 ) {
     val navController = rememberNavController()
     val userUiState by userViewModel.uiState.collectAsState()
     val context = LocalContext.current
 
-    // State to control the visibility of the daily bonus dialog
+    val Purple500 = Color(0xFF6200EE)
+    val Purple700 = Color(0xFF3700B3)
+    val White = Color(0xFFFFFFFF)
+    val LightGray = Color(0xFFF0F0F0)
+    val DarkPurple = Color(0xFF4A00A0)
+    val MediumPurple = Color(0xFF8A2BE2)
+
     var showDailyBonusDialog by remember { mutableStateOf(false) }
 
-    // Listen for daily bonus availability and show dialog
     LaunchedEffect(userUiState.dailyBonusAvailable) {
         if (userUiState.dailyBonusAvailable) {
             showDailyBonusDialog = true
         }
     }
 
-    // Listen for navigation changes to trigger interstitial ads
     LaunchedEffect(navController) {
         navController.currentBackStackEntryFlow.collect {
             onShowInterstitialAd()
@@ -448,68 +509,66 @@ fun MainAppScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("QRWiz", style = MaterialTheme.typography.titleLarge) }, // Smaller title
+                title = { Text("QRWiz", style = MaterialTheme.typography.titleLarge, color = White) },
                 navigationIcon = {
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
                     val currentRoute = navBackStackEntry?.destination?.route
-                    if (currentRoute != Screen.Home.route) { // Show back button on all screens except Home
+                    if (currentRoute != Screen.Home.route) {
                         IconButton(onClick = { navController.navigateUp() }) {
                             Icon(
                                 imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                                 contentDescription = "Back",
-                                tint = MaterialTheme.colorScheme.onPrimaryContainer // Consistent tint
+                                tint = White
                             )
                         }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.onSecondary, // Transparent feel
-                    titleContentColor = MaterialTheme.colorScheme.primary
+                    containerColor = Purple700,
+                    titleContentColor = White
                 ),
                 actions = {
-                    // Display coin balance
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(end = 8.dp) // Adjusted padding
+                        modifier = Modifier.padding(end = 8.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.MonetizationOn,
                             contentDescription = "Coin Balance",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp) // Smaller icon
+                            tint = LightGray,
+                            modifier = Modifier.size(20.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = userUiState.coins.toString(),
-                            style = MaterialTheme.typography.titleSmall, // Smaller text
+                            style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
+                            color = White
                         )
                     }
-                    // Display diamond balance
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.padding(end = 8.dp) // Adjusted padding
+                        modifier = Modifier.padding(end = 8.dp)
                     ) {
                         Icon(
                             imageVector = Icons.Default.Diamond,
                             contentDescription = "Diamond Balance",
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(20.dp) // Smaller icon
+                            tint = LightGray,
+                            modifier = Modifier.size(20.dp)
                         )
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = userUiState.diamonds.toString(),
-                            style = MaterialTheme.typography.titleSmall, // Smaller text
+                            style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
+                            color = White
                         )
                     }
                     IconButton(onClick = onToggleTheme) {
                         Icon(
                             imageVector = Icons.Default.LightMode,
                             contentDescription = "Toggle Dark Mode",
-                            tint = MaterialTheme.colorScheme.primary // Consistent tint
+                            tint = White
                         )
                     }
                 }
@@ -517,20 +576,19 @@ fun MainAppScreen(
         },
         bottomBar = {
             Column {
-                // Consistent Banner Ad at the bottom across all screens
                 if (!isPremiumUser) {
                     BannerAd(adUnitId = BANNER_AD_UNIT_ID)
                 }
                 NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.8f) // Transparent feel
+                    containerColor = Purple700
                 ) {
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
                     val currentDestination = navBackStackEntry?.destination
 
                     navItems.forEach { screen ->
                         NavigationBarItem(
-                            icon = { Icon(screen.icon, contentDescription = screen.title, modifier = Modifier.size(24.dp)) }, // Smaller icons
-                            label = { Text(screen.title, style = MaterialTheme.typography.labelSmall) }, // Smaller labels
+                            icon = { Icon(screen.icon, contentDescription = screen.title, modifier = Modifier.size(24.dp)) },
+                            label = { Text(screen.title, style = MaterialTheme.typography.labelSmall) },
                             selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
                             onClick = {
                                 navController.navigate(screen.route) {
@@ -541,12 +599,12 @@ fun MainAppScreen(
                                     restoreState = true
                                 }
                             },
-                            colors = androidx.compose.material3.NavigationBarItemDefaults.colors( // Use specific colors for selected/unselected
-                                selectedIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                                selectedTextColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                indicatorColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.5f) // Transparent indicator
+                            colors = androidx.compose.material3.NavigationBarItemDefaults.colors(
+                                selectedIconColor = White,
+                                selectedTextColor = White,
+                                unselectedIconColor = LightGray,
+                                unselectedTextColor = LightGray,
+                                indicatorColor = MediumPurple
                             )
                         )
                     }
@@ -559,7 +617,6 @@ fun MainAppScreen(
                 .padding(innerPadding)
                 .fillMaxSize()
         ) {
-            // No global banner ad here. Each screen will manage its own banner ad.
             Box(
                 modifier = Modifier
                     .weight(1f)
@@ -573,16 +630,16 @@ fun MainAppScreen(
                     composable(Screen.Home.route) {
                         HomeScreen(
                             coinBalance = userUiState.coins,
-                            diamondBalance = userUiState.diamonds, // Pass diamond balance
-                            isPremiumUser = isPremiumUser, // Pass premium status
+                            diamondBalance = userUiState.diamonds,
+                            isPremiumUser = isPremiumUser,
                             onNavigateToGenerate = { navController.navigate(Screen.Generate.route) },
                             onNavigateToScan = { navController.navigate(Screen.Scan.route) },
                             onNavigateToGainCoins = { navController.navigate(Screen.GainCoins.route) },
-                            onNavigateToRedeem = { navController.navigate(Screen.Redeem.route) }, // Navigate to redeem screen
-                            onNavigateToHistory = { navController.navigate(Screen.History.route) }, // Navigate to history screen
-                            onNavigateToPremium = { navController.navigate(Screen.Premium.route) }, // Navigate to premium screen
-                            nativeAd = nativeAd, // Pass native ad
-                            showNativeAd = !isPremiumUser // Show native ad if not premium
+                            onNavigateToRedeem = { navController.navigate(Screen.Redeem.route) },
+                            onNavigateToHistory = { navController.navigate(Screen.History.route) },
+                            onNavigateToPremium = { navController.navigate(Screen.Premium.route) },
+                            nativeAd = nativeAd,
+                            showNativeAd = !isPremiumUser
                         )
                     }
                     composable(Screen.Generate.route) {
@@ -592,8 +649,8 @@ fun MainAppScreen(
                             onDeductCoins = userViewModel::deductCoins,
                             onShowInterstitialAd = onShowInterstitialAd,
                             showToast = { message -> context.showToast(message) },
-                            nativeAd = nativeAd, // Pass native ad
-                            showNativeAd = !isPremiumUser // Show native ad if not premium
+                            nativeAd = nativeAd,
+                            showNativeAd = !isPremiumUser
                         )
                     }
                     composable(Screen.Scan.route) {
@@ -602,12 +659,12 @@ fun MainAppScreen(
                             onAddCoins = { amount ->
                                 userViewModel.addCoins(amount)
                             },
-                            onAddScanToHistory = userViewModel::addScanToHistory, // Pass history function
+                            onAddScanToHistory = userViewModel::addScanToHistory,
                             onShowInterstitialAd = onShowInterstitialAd,
-                            isPremiumUser = isPremiumUser, // Pass premium status
+                            isPremiumUser = isPremiumUser,
                             showToast = { message -> context.showToast(message) },
-                            nativeAd = nativeAd, // Pass native ad
-                            showNativeAd = false // Native ads removed from QRScan screen
+                            nativeAd = nativeAd,
+                            showAd = !isPremiumUser
                         )
                     }
                     composable(Screen.GainCoins.route) {
@@ -615,20 +672,18 @@ fun MainAppScreen(
                             coinBalance = userUiState.coins,
                             onShowRewardedAd = onShowRewardedAd,
                             onNavigateToScan = { navController.navigate(Screen.Scan.route) },
-                            onNavigateToPremium = { navController.navigate(Screen.Premium.route) }, // Navigate to premium from here
-                            nativeAd = nativeAd, // Pass native ad
+                            onNavigateToPremium = { navController.navigate(Screen.Premium.route) },
+                            nativeAd = nativeAd,
                             showNativeAd = !isPremiumUser ,
                             isPremiumUser = isPremiumUser,
-                            dailyBonusAvailable = userUiState.dailyBonusAvailable, // Pass daily bonus state
-                            dailyBonusAmount = userUiState.dailyBonusAmount, // Pass daily bonus amount
-                            dailyStreak = userUiState.dailyStreak, // Pass daily streak
-                            dailyBonusPattern = userUiState.dailyBonusPattern, // Pass daily bonus pattern
+                            dailyBonusAvailable = userUiState.dailyBonusAvailable,
+                            dailyBonusAmount = userUiState.dailyBonusAmount,
+                            dailyStreak = userUiState.dailyStreak,
+                            dailyBonusPattern = userUiState.dailyBonusPattern,
                             onClaimDailyBonus = {
-                                // This lambda will be called from GainCoinsScreen to trigger the ad and claim
                                 onShowRewardedInterstitialAdForDailyBonus { adWatchedAndRewarded ->
                                     if (adWatchedAndRewarded) {
                                         userViewModel.claimDailyBonus()
-                                        // No need to dismiss dialog here, as it's handled in MainActivity
                                     } else {
                                         context.showToast("Ad not ready or not watched. Please try again.")
                                     }
@@ -640,32 +695,32 @@ fun MainAppScreen(
                         RedeemCodeScreen(
                             userViewModel = userViewModel,
                             showToast = { message -> context.showToast(message) },
-                            nativeAd = nativeAd, // Pass native ad
-                            showNativeAd = false // Show native ad if not premium
+                            nativeAd = nativeAd,
+                            showAd = !isPremiumUser
                         )
                     }
                     composable(Screen.History.route) {
                         HistoryScreen(
                             userViewModel = userViewModel,
-                            onNavigateToPremium = { navController.navigate(Screen.Premium.route) }, // Navigate to premium from here
+                            onNavigateToPremium = { navController.navigate(Screen.Premium.route) },
                             showToast = { message -> context.showToast(message) },
                             onShowInterstitialAd = onShowInterstitialAd,
-                            nativeAd = nativeAd, // Pass native ad
-                            showNativeAd = false // Show native ad if not premium
+                            nativeAd = nativeAd,
+                            showAd = !isPremiumUser
                         )
                     }
                     composable(Screen.About.route) {
                         AboutScreen(
-                            nativeAd = nativeAd, // Pass native ad
-                            showNativeAd = !isPremiumUser // Show native ad if not premium
+                            nativeAd = nativeAd,
+                            showNativeAd = !isPremiumUser
                         )
                     }
                     composable(Screen.Premium.route) {
                         PremiumPlanScreen(
                             userViewModel = userViewModel,
                             showToast = { message -> context.showToast(message) },
-                            nativeAd = nativeAd, // Pass native ad
-                            showNativeAd = !isPremiumUser // Show native ad if not premium
+                            nativeAd = nativeAd,
+                            showAd = !isPremiumUser
                         )
                     }
                 }
@@ -673,31 +728,51 @@ fun MainAppScreen(
         }
     }
 
-    // Daily Bonus Dialog - Keep this for initial notification on app launch
     if (showDailyBonusDialog && userUiState.dailyBonusAvailable) {
         AlertDialog(
             onDismissRequest = { showDailyBonusDialog = false },
-            title = { Text("Daily Login Bonus!") },
-            text = { Text("Claim your daily bonus of ${userUiState.dailyBonusAmount} coins! Current streak: ${userUiState.dailyStreak + 1} days.") },
+            icon = { Icon(Icons.Default.CardGiftcard, contentDescription = "Daily Bonus", tint = White) },
+            title = { Text("Daily Login Bonus!", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = White) },
+            text = {
+                Column {
+                    Text(
+                        "Claim your daily bonus of ${userUiState.dailyBonusAmount} coins!",
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = LightGray
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        "Current streak: ${userUiState.dailyStreak + 1} days.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = LightGray
+                    )
+                }
+            },
             confirmButton = {
-                Button(onClick = {
-                    // Attempt to show rewarded interstitial ad
-                    onShowRewardedInterstitialAdForDailyBonus { adWatchedAndRewarded ->
-                        if (adWatchedAndRewarded) {
-                            userViewModel.claimDailyBonus()
-                            showDailyBonusDialog = false // Dismiss dialog after successful claim
-                        } else {
-                            // Ad not watched or not ready, keep dialog open or show a message
-                            context.showToast("Ad not ready or not watched. Please try again.")
+                Button(
+                    onClick = {
+                        onShowRewardedInterstitialAdForDailyBonus { adWatchedAndRewarded ->
+                            if (adWatchedAndRewarded) {
+                                userViewModel.claimDailyBonus()
+                                showDailyBonusDialog = false
+                            } else {
+                                context.showToast("Ad not ready or not watched. Please try again.")
+                            }
                         }
-                    }
-                }) {
-                    Text("Claim Now!")
+                    },
+                    shape = RoundedCornerShape(10.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = MediumPurple)
+                ) {
+                    Text("Claim Now!", color = White)
                 }
             },
             dismissButton = {
-                Button(onClick = { showDailyBonusDialog = false }) {
-                    Text("Later")
+                OutlinedButton(
+                    onClick = { showDailyBonusDialog = false },
+                    shape = RoundedCornerShape(10.dp),
+                    border = ButtonDefaults.outlinedButtonBorder.copy(width = 1.dp)
+                ) {
+                    Text("Later", color = LightGray)
                 }
             }
         )
@@ -710,13 +785,12 @@ fun BannerAd(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-
     AndroidView(
         modifier = modifier
             .fillMaxWidth()
-            .height(50.dp) // Standard banner ad height
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.9f)) // Slightly transparent background
-            .padding(vertical = 4.dp), // Small padding
+            .height(50.dp)
+            .background(Color(0xFF3700B3))
+            .padding(vertical = 4.dp),
         factory = {
             AdView(context).apply {
                 setAdSize(
@@ -726,22 +800,15 @@ fun BannerAd(
                     )
                 )
                 setAdUnitId(adUnitId)
-
                 adListener = object : AdListener() {
                     override fun onAdLoaded() {
-                        AdEventLogger.logBannerLoaded()
                         Log.d(AD_LOG_TAG, "Banner ad loaded successfully for unit: $adUnitId")
                     }
-
                     override fun onAdFailedToLoad(adError: LoadAdError) {
-                        Log.e(AD_LOG_TAG, "Banner ad failed to load for unit $adUnitId: ${adError.message} (Code: ${adError.code})")
+                        Log.e(AD_LOG_TAG, "Banner ad failed to load for unit $adUnitId: ${adError.message}")
                     }
-
-                    override fun onAdClicked() {
-                        Log.d(AD_LOG_TAG, "Banner ad clicked for unit: $adUnitId")
-                    }
+                    override fun onAdClicked() {}
                 }
-
                 loadAd(AdRequest.Builder().build())
             }
         },
@@ -761,37 +828,32 @@ fun NativeAdViewComposable(
         Spacer(modifier = Modifier.height(0.dp))
         return
     }
-
     Card(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 8.dp, vertical = 4.dp)
             .clickable {
-                // This is the correct way to register a click on the native ad
                 nativeAd.performClick(Bundle())
-                Log.d(AD_LOG_TAG, "Native ad clicked via performClick().")
-            }        ,
+            },
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
         shape = RoundedCornerShape(8.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow
+            containerColor = Color(0xFF4A00A0)
         )
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(MaterialTheme.colorScheme.surfaceContainer)
+                .background(Color(0xFF6200EE))
         ) {
-            // "Sponsored" label
             Text(
                 text = "Sponsored",
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = LightGray,
                 modifier = Modifier
-                    .align(Alignment.TopEnd) // Align to top end
-                    .padding(4.dp) // Small padding
+                    .align(Alignment.TopEnd)
+                    .padding(4.dp)
             )
-
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -799,49 +861,36 @@ fun NativeAdViewComposable(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                // Display the native ad's media (if available) or a placeholder
                 AndroidView(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(180.dp), // Standard height for native ad media
+                        .height(180.dp),
                     factory = { context ->
-                        // This is a simplified representation.
-                        // In a real app, you would inflate a NativeAdView layout
-                        // and populate it with nativeAd assets (headline, body, media, icon, etc.)
-                        // For this example, we'll just show the headline and body.
-                        // A more robust implementation would involve a custom layout for the native ad.
                         val adView = AdView(context).apply {
-                            setAdSize(AdSize.MEDIUM_RECTANGLE) // Or a suitable size for native ads
-                            setAdUnitId(NATIVE_AD_UNIT_ID) // Use the native ad unit ID
-                            loadAd(AdRequest.Builder().build()) // Load a test ad
+                            setAdSize(AdSize.MEDIUM_RECTANGLE)
+                            setAdUnitId(NATIVE_AD_UNIT_ID)
+                            loadAd(AdRequest.Builder().build())
                         }
                         adView
                     },
                     update = { adView ->
-                        // Update logic if needed, e.g., reloading ad on configuration change
                         adView.loadAd(AdRequest.Builder().build())
                     }
                 )
-
                 Spacer(modifier = Modifier.height(8.dp))
-
-                // Display headline
                 Text(
                     text = nativeAd.headline ?: "Ad Headline",
                     style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = White,
                     fontWeight = FontWeight.Bold,
                     maxLines = 2,
                     modifier = Modifier.fillMaxWidth()
                 )
-
                 Spacer(modifier = Modifier.height(4.dp))
-
-                // Display body
                 Text(
                     text = nativeAd.body ?: "Ad Body Text",
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = LightGray,
                     maxLines = 2,
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -849,8 +898,6 @@ fun NativeAdViewComposable(
         }
     }
 }
-
-
 
 @Composable
 fun RewardedAdButton(
@@ -859,7 +906,6 @@ fun RewardedAdButton(
     text: String = "Watch Ad for Premium Features"
 ) {
     var rewardEarned by remember { mutableStateOf(0) }
-
     OutlinedButton(
         onClick = {
             onShowRewardedAd { reward ->
@@ -867,12 +913,13 @@ fun RewardedAdButton(
             }
         },
         modifier = modifier,
-        shape = RoundedCornerShape(10.dp), // Slightly less rounded
-        border = ButtonDefaults.outlinedButtonBorder.copy(width = 1.dp) // Thinner border
+        shape = RoundedCornerShape(10.dp),
+        border = ButtonDefaults.outlinedButtonBorder.copy(width = 1.dp)
     ) {
-        Text(text, style = MaterialTheme.typography.labelLarge) // Smaller text
+        Text(text, style = MaterialTheme.typography.labelLarge, color = White)
         if (rewardEarned > 0) {
-            Text(" (Rewards: $rewardEarned)", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.labelLarge)
+            Text(" (Rewards: $rewardEarned)", color = Color(193, 77, 238, 255), style = MaterialTheme.typography.labelLarge)
         }
     }
 }
+
