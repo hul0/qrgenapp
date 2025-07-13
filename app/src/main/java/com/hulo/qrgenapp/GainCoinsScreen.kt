@@ -322,7 +322,7 @@ fun CoinEarningMethodCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
             )
-            Spacer(modifier = Modifier.height(12.dp)) // Smaller spacer
+            Spacer(modifier = Modifier.height(12.dp))
             Button(
                 onClick = onClick,
                 shape = RoundedCornerShape(12.dp),
