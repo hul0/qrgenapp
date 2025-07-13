@@ -63,9 +63,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.io.IOException
 import java.util.concurrent.Executors
-import android.util.Patterns // For URL and Email validation
+import android.util.Patterns
 import androidx.camera.core.Preview as CameraPreviewUseCase
-
 
 object QRDataProcessor {
 
@@ -73,54 +72,46 @@ object QRDataProcessor {
         URL,
         TEXT,
         WIFI,
-        CONTACT_INFO, // VCARD
+        CONTACT_INFO,
         EMAIL,
         PHONE,
         SMS,
         GEO_LOCATION,
-        CALENDAR_EVENT, // VEVENT
-        APP_DEEP_LINK, // Custom scheme or known app schemes
+        CALENDAR_EVENT,
+        APP_DEEP_LINK,
         UNKNOWN,
-        // NEW: Add a generic BARCODE type for non-QR barcodes
         BARCODE
     }
 
     data class ProcessedQRData(
         val rawValue: String,
         val type: QRContentType,
-        val data: Map<String, String> = emptyMap() // Optional: Store parsed data fields
+        val data: Map<String, String> = emptyMap()
     )
 
     fun process(rawValue: String): ProcessedQRData {
         if (rawValue.isBlank()) {
-            return ProcessedQRData(rawValue, QRContentType.TEXT) // Or UNKNOWN if preferred
+            return ProcessedQRData(rawValue, QRContentType.TEXT)
         }
 
-        // --- URL ---
-        // More robust URL check using Android's Patterns
         if (Patterns.WEB_URL.matcher(rawValue).matches() ||
             rawValue.startsWith("http://", ignoreCase = true) ||
             rawValue.startsWith("https://", ignoreCase = true) ||
-            rawValue.matches(Regex("^[a-zA-Z0-9]+([-.][a-zA-Z0-9]+)*\\.[a-zA-Z]{2,}(:[0-9]{1,5})?(/.*)?$"))) { // Basic domain check
+            rawValue.matches(Regex("^[a-zA-Z0-9]+([-.][a-zA-Z0-9]+)*\\.[a-zA-Z]{2,}(:[0-9]{1,5})?(/.*)?$"))) {
             return ProcessedQRData(rawValue, QRContentType.URL)
         }
 
-        // --- WIFI ---
-        // Format: WIFI:S:<SSID>;T:<WPA|WEP|nopass>;P:<PASSWORD>;H:<true|false|>;;
         if (rawValue.startsWith("WIFI:", ignoreCase = true)) {
             val params = parseKeyValueString(rawValue.substringAfter("WIFI:"), ';', ':')
             return ProcessedQRData(rawValue, QRContentType.WIFI, params)
         }
 
-        // --- Contact Info (VCARD) ---
-        // Simple check, VCARDs can be complex
         if (rawValue.startsWith("BEGIN:VCARD", ignoreCase = true)) {
-            // Basic parsing, can be expanded significantly
             val vcardData = mutableMapOf<String, String>()
             rawValue.lines().forEach { line ->
                 if (line.contains(":")) {
                     val parts = line.split(":", limit = 2)
-                    val key = parts[0].substringAfterLast(';').trim() // Handle potential parameters like N;CHARSET=UTF-8
+                    val key = parts[0].substringAfterLast(';').trim()
                     val value = parts[1].trim()
                     when {
                         key.equals("FN", ignoreCase = true) -> vcardData["fullName"] = value
@@ -141,8 +132,6 @@ object QRDataProcessor {
             return ProcessedQRData(rawValue, QRContentType.CONTACT_INFO, vcardData)
         }
 
-        // --- Email ---
-        // mailto:someone@example.com?subject=Subject&body=BodyText
         if (rawValue.startsWith("mailto:", ignoreCase = true)) {
             val emailData = mutableMapOf<String, String>()
             val mainPart = rawValue.substringAfter("mailto:")
@@ -153,40 +142,33 @@ object QRDataProcessor {
                 queryParams.forEach { param ->
                     val keyValue = param.split('=', limit = 2)
                     if (keyValue.size == 2) {
-                        emailData[keyValue[0].lowercase()] = keyValue[1] // .URLDecoder.decode(keyValue[1], "UTF-8") if needed
+                        emailData[keyValue[0].lowercase()] = keyValue[1]
                     }
                 }
             }
             return ProcessedQRData(rawValue, QRContentType.EMAIL, emailData)
         }
-        // Basic email regex as a fallback if not mailto:
         if (Patterns.EMAIL_ADDRESS.matcher(rawValue).matches()) {
             return ProcessedQRData(rawValue, QRContentType.EMAIL, mapOf("to" to rawValue))
         }
 
-        // --- Phone Number ---
-        // tel:<phone_number>
         if (rawValue.startsWith("tel:", ignoreCase = true)) {
             return ProcessedQRData(rawValue, QRContentType.PHONE, mapOf("number" to rawValue.substringAfter("tel:")))
         }
-        // Basic phone number regex (very simplified, adapt for your needs)
         if (rawValue.matches(Regex("^\\+?[0-9\\s\\-()]{7,}$"))) {
             return ProcessedQRData(rawValue, QRContentType.PHONE, mapOf("number" to rawValue))
         }
 
-
-        // --- SMS ---
-        // smsto:<number>:<message> or sms:<number>?body=<message>
         if (rawValue.startsWith("smsto:", ignoreCase = true) || rawValue.startsWith("sms:", ignoreCase = true)) {
             val smsData = mutableMapOf<String, String>()
             val prefix = if (rawValue.startsWith("smsto:", ignoreCase = true)) "smsto:" else "sms:"
             var content = rawValue.substringAfter(prefix)
 
-            if (content.contains("?body=")) { // For sms:number?body=message format
+            if (content.contains("?body=")) {
                 val parts = content.split("?body=", limit = 2)
                 smsData["number"] = parts[0]
-                if (parts.size > 1) smsData["message"] = parts[1] // URLDecoder.decode(parts[1], "UTF-8") if needed
-            } else { // For smsto:number:message format
+                if (parts.size > 1) smsData["message"] = parts[1]
+            } else {
                 val parts = content.split(":", limit = 2)
                 smsData["number"] = parts[0]
                 if (parts.size > 1) smsData["message"] = parts[1]
@@ -194,8 +176,6 @@ object QRDataProcessor {
             return ProcessedQRData(rawValue, QRContentType.SMS, smsData)
         }
 
-        // --- Geo Location ---
-        // geo:<latitude>,<longitude>?q=<query>
         if (rawValue.startsWith("geo:", ignoreCase = true)) {
             val geoData = mutableMapOf<String, String>()
             val content = rawValue.substringAfter("geo:")
@@ -211,10 +191,7 @@ object QRDataProcessor {
             return ProcessedQRData(rawValue, QRContentType.GEO_LOCATION, geoData)
         }
 
-        // --- Calendar Event (VEVENT) ---
-        // Simple check, VEVENTs can be complex
         if (rawValue.startsWith("BEGIN:VEVENT", ignoreCase = true)) {
-            // Basic parsing, can be expanded
             val eventData = mutableMapOf<String, String>()
             rawValue.lines().forEach { line ->
                 if (line.contains(":")) {
@@ -231,29 +208,10 @@ object QRDataProcessor {
             return ProcessedQRData(rawValue, QRContentType.CALENDAR_EVENT, eventData)
         }
 
-        // --- App Deep Link (Example for a custom scheme) ---
-        // myapp://screen/some_id
-        if (rawValue.startsWith("myapp://", ignoreCase = true)) { // Replace "myapp" with your actual scheme
+        if (rawValue.startsWith("myapp://", ignoreCase = true)) {
             return ProcessedQRData(rawValue, QRContentType.APP_DEEP_LINK, mapOf("uri" to rawValue))
         }
 
-        // NEW: Check if it's a known barcode format that isn't a QR code
-        // This is a heuristic. ML Kit will identify the format, but here we classify for display.
-        // If it's not a URL, WIFI, etc., and it's a common barcode length/pattern, classify as BARCODE.
-        // This is a very basic check; a more robust solution might involve passing the Barcode.format
-        // from ML Kit to this processor. For now, if it's not one of the above structured types,
-        // and ML Kit identified it, we can assume it's a generic barcode if it's not a QR code.
-        // For simplicity, if it's not a recognized structured data type, we'll default to TEXT or BARCODE.
-        // The actual ML Kit Barcode object contains the format, which is more reliable.
-        // For now, if it doesn't match any specific QR content type, we can assume it's a generic barcode
-        // if it's not just plain text.
-        // This logic might need refinement if specific barcode types need special handling beyond rawValue.
-
-        // --- Default to TEXT or BARCODE ---
-        // If none of the above specific types match, it's either plain text or a generic barcode.
-        // Since ML Kit will handle the actual barcode detection, we'll let it be `TEXT` here,
-        // and the UI can show the raw value. If we wanted to differentiate, we'd need the Barcode.format
-        // passed into this function. For now, the `rawValue` is sufficient.
         return ProcessedQRData(rawValue, QRContentType.TEXT)
     }
 
@@ -283,22 +241,30 @@ data class QRScanUiState(
     val isResultDialogShown: Boolean = false,
     val scanCount: Int = 0,
     val toastMessage: String? = null,
-    val coinCooldownRemaining: Int = 0 // NEW: Cooldown for coin rewards
+    val coinCooldownRemaining: Int = 0
 )
 
 class QRScanViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(QRScanUiState())
     val uiState: StateFlow<QRScanUiState> = _uiState.asStateFlow()
 
-    // Use a MutableStateFlow to make it observable and persist across process death if needed
     private val _lastCoinAwardTime = MutableStateFlow(0L)
-    private val COIN_COOLDOWN_MILLIS = 30 * 1000L // 30 seconds
+    private val COIN_COOLDOWN_MILLIS = 30 * 1000L
+
+    private val _lastScanTime = MutableStateFlow(0L)
+    private val SCAN_COOLDOWN_MILLIS = 3 * 1000L
 
     fun onPermissionResult(isGranted: Boolean) {
         _uiState.update { it.copy(hasCameraPermission = isGranted) }
     }
 
     fun onCodeScanned(result: QRDataProcessor.ProcessedQRData) {
+        val currentTime = System.currentTimeMillis()
+        if (currentTime - _lastScanTime.value < SCAN_COOLDOWN_MILLIS) {
+            _uiState.update { it.copy(toastMessage = "Scanning too fast! Please wait.") }
+            return
+        }
+
         _uiState.update {
             it.copy(
                 scannedCode = result,
@@ -306,6 +272,7 @@ class QRScanViewModel : ViewModel() {
                 scanCount = it.scanCount + 1
             )
         }
+        _lastScanTime.value = currentTime
     }
 
     fun dismissResultDialog() {
@@ -316,13 +283,12 @@ class QRScanViewModel : ViewModel() {
         }
     }
 
-    // NEW: Function to handle coin award logic with cooldown
     fun tryAwardCoins(onAddCoins: (Int) -> Unit, context: Context) {
         val currentTime = System.currentTimeMillis()
 
         if (currentTime - _lastCoinAwardTime.value >= COIN_COOLDOWN_MILLIS) {
             onAddCoins(5)
-            _lastCoinAwardTime.value = currentTime // Update the observable state
+            _lastCoinAwardTime.value = currentTime
             _uiState.update { it.copy(toastMessage = "You earned +5 coins!", coinCooldownRemaining = 0) }
             startCoinCooldownTimer()
         } else {
@@ -334,7 +300,7 @@ class QRScanViewModel : ViewModel() {
     private var coinCooldownJob: Job? = null
 
     private fun startCoinCooldownTimer() {
-        coinCooldownJob?.cancel() // Cancel previous job if active
+        coinCooldownJob?.cancel()
         val COIN_COOLDOWN_SECONDS = 30
         _uiState.update { it.copy(coinCooldownRemaining = COIN_COOLDOWN_SECONDS) }
         coinCooldownJob = viewModelScope.launch {
@@ -346,13 +312,17 @@ class QRScanViewModel : ViewModel() {
         }
     }
 
-    // --- Scan QR code or Barcode from an image URI ---
     fun scanImage(uri: Uri, context: Context) {
+        val currentTime = System.currentTimeMillis()
+        if (currentTime - _lastScanTime.value < SCAN_COOLDOWN_MILLIS) {
+            _uiState.update { it.copy(toastMessage = "Scanning too fast! Please wait.") }
+            return
+        }
+
         try {
             val inputImage = InputImage.fromFilePath(context, uri)
-            // NEW: Set BarcodeFormats to ALL_FORMATS to scan all supported barcode types
             val options = BarcodeScannerOptions.Builder()
-                .setBarcodeFormats(Barcode.FORMAT_ALL_FORMATS) // Changed from FORMAT_QR_CODE
+                .setBarcodeFormats(Barcode.FORMAT_ALL_FORMATS)
                 .build()
             val scanner = BarcodeScanning.getClient(options)
 
@@ -364,7 +334,7 @@ class QRScanViewModel : ViewModel() {
                             onCodeScanned(processedData)
                         }
                     } else {
-                        _uiState.update { it.copy(toastMessage = "No QR code or barcode found in image") } // Updated message
+                        _uiState.update { it.copy(toastMessage = "No QR code or barcode found in image") }
                     }
                 }
                 .addOnFailureListener { e ->
@@ -374,6 +344,8 @@ class QRScanViewModel : ViewModel() {
         } catch (e: IOException) {
             Log.e("QRScan", "Failed to load image for scanning", e)
             _uiState.update { it.copy(toastMessage = "Could not load the selected image.") }
+        } finally {
+            _lastScanTime.value = currentTime
         }
     }
 
@@ -426,7 +398,7 @@ fun QRScanScreen(
             uiState.scannedCode?.rawValue?.let {
                 onAddScanToHistory(it)
                 if (isNetworkAvailable(context)) {
-                    viewModel.tryAwardCoins(onAddCoins, context) // Call ViewModel to handle coin logic
+                    viewModel.tryAwardCoins(onAddCoins, context)
                     if (!isPremiumUser) {
                         onShowInterstitialAd()
                     }
@@ -453,10 +425,6 @@ fun QRScanScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-
-
-
-
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -486,7 +454,7 @@ fun QRScanScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Image,
-                            contentDescription = "Import QR Code from Image", // Keep this description as it's common
+                            contentDescription = "Import QR Code from Image",
                             tint = Color.White
                         )
                     }
@@ -506,7 +474,6 @@ fun QRScanScreen(
                     }
                 }
 
-                // NEW: Coin Cooldown Overlay
                 if (uiState.coinCooldownRemaining > 0) {
                     Box(
                         modifier = Modifier
@@ -553,15 +520,14 @@ fun CameraPreview(
     val context = LocalContext.current
     val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
     val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
-    var camera by remember { mutableStateOf<Camera?>(null) } // State to hold the Camera instance
+    var camera by remember { mutableStateOf<Camera?>(null) }
 
-    val previewView = remember { PreviewView(context) } // Create PreviewView once and remember it
+    val previewView = remember { PreviewView(context) }
 
-    // Effect to bind camera and set up use cases
     LaunchedEffect(lifecycleOwner, cameraProviderFuture, previewView) {
         val cameraProvider = cameraProviderFuture.get()
 
-        val previewUseCase = CameraPreviewUseCase.Builder().build().also {
+        val previewUseCase = androidx.camera.core.Preview.Builder().build().also {
             it.setSurfaceProvider(previewView.surfaceProvider)
         }
 
@@ -573,13 +539,11 @@ fun CameraPreview(
             .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
             .build()
             .also {
-                // Always analyze, no cooldown for scanning itself
-                // NEW: Use BarcodeAnalyzer instead of QRCodeAnalyzer
                 it.setAnalyzer(cameraExecutor, BarcodeAnalyzer(onCodeScanned))
             }
 
         try {
-            cameraProvider.unbindAll() // Unbind previous use cases
+            cameraProvider.unbindAll()
             camera = cameraProvider.bindToLifecycle(
                 lifecycleOwner,
                 cameraSelector,
@@ -590,40 +554,28 @@ fun CameraPreview(
         } catch (e: Exception) {
             Log.e("QRScan", "CameraX binding failed", e)
         }
-
-        // Cleanup when composable leaves composition
-//        onDispose {
-//            cameraExecutor.shutdown()
-//            cameraProvider.unbindAll()
-//        }
     }
 
-    // Effect to control flashlight based on state
     LaunchedEffect(isFlashlightOn, camera) {
         camera?.cameraControl?.enableTorch(isFlashlightOn)
     }
 
-    // The AndroidView displays the PreviewView created above
     AndroidView(
         modifier = Modifier.fillMaxSize(),
         factory = {
-            previewView // Return the remembered PreviewView
+            previewView
         },
         update = {
-            // No need to re-bind camera here.
-            // The LaunchedEffects handle binding and torch control.
         }
     )
 }
 
 
-// NEW: Renamed from QRCodeAnalyzer to BarcodeAnalyzer to support all barcode types
 private class BarcodeAnalyzer(
     private val onCodeScanned: (String) -> Unit,
 ) : ImageAnalysis.Analyzer {
-    // NEW: Set BarcodeFormats to ALL_FORMATS to scan all supported barcode types
     private val options = BarcodeScannerOptions.Builder()
-        .setBarcodeFormats(Barcode.FORMAT_ALL_FORMATS) // Changed from FORMAT_QR_CODE
+        .setBarcodeFormats(Barcode.FORMAT_ALL_FORMATS)
         .build()
 
     private val scanner = BarcodeScanning.getClient(options)
@@ -638,7 +590,7 @@ private class BarcodeAnalyzer(
                 .addOnSuccessListener { barcodes ->
                     if (barcodes.isNotEmpty()) {
                         barcodes.first().rawValue?.let {
-                            onCodeScanned(it) // No onScanInitiated call
+                            onCodeScanned(it)
                         }
                     }
                 }
@@ -649,7 +601,7 @@ private class BarcodeAnalyzer(
                     imageProxy.close()
                 }
         } else {
-            imageProxy.close() // Always close the imageProxy
+            imageProxy.close()
         }
     }
 }
@@ -667,7 +619,7 @@ fun EnhancedScanResultDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Default.Info, contentDescription = "Info") },
-        title = { Text("Code Scanned!") }, // Updated title
+        title = { Text("Code Scanned!") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
@@ -777,7 +729,7 @@ fun ScannerOverlay() {
                 .clip(RoundedCornerShape(24.dp))
         )
         Text(
-            text = "Point your camera at a QR code or barcode", // Updated text
+            text = "Point your camera at a QR code or barcode",
             color = Color.White,
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold,
@@ -817,7 +769,7 @@ fun PermissionDeniedScreen(onRequestPermission: () -> Unit) {
         )
         Spacer(modifier = Modifier.height(12.dp))
         Text(
-            text = "To scan QR codes and barcodes, this app requires camera permission. Please grant access to continue.", // Updated text
+            text = "To scan QR codes and barcodes, this app requires camera permission. Please grant access to continue.",
             style = MaterialTheme.typography.bodyLarge,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant
