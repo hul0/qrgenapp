@@ -40,7 +40,8 @@ fun GainCoinsScreen(
     onShowRewardedAd: (onRewardEarned: (Int) -> Unit) -> Unit,
     onNavigateToPremium: () -> Unit, // New: Navigate to premium screen
     nativeAd: NativeAd?, // New: Native Ad
-    showNativeAd: Boolean // New: Control native ad visibility
+    showNativeAd: Boolean,
+    isPremiumUser: Boolean
 ) {
     Column(
         modifier = Modifier
@@ -150,7 +151,8 @@ fun GainCoinsScreen(
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.9f)), // Transparent feel
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
-            Column(
+
+            if(!isPremiumUser){Column(
                 modifier = Modifier.padding(16.dp), // Smaller padding
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.spacedBy(10.dp) // Smaller spacing
@@ -178,14 +180,29 @@ fun GainCoinsScreen(
                 Button(
                     onClick = onNavigateToPremium,
                     shape = RoundedCornerShape(12.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.9f)), // Transparent feel
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp) // Smaller padding
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary.copy(
+                            alpha = 0.9f
+                        )
+                    ), // Transparent feel
+                    contentPadding = PaddingValues(
+                        horizontal = 16.dp,
+                        vertical = 8.dp
+                    ) // Smaller padding
                 ) {
-                    Icon(Icons.Default.Diamond, contentDescription = "Buy Premium", modifier = Modifier.size(18.dp)) // Smaller icon
+                    Icon(
+                        Icons.Default.Diamond,
+                        contentDescription = "Buy Premium",
+                        modifier = Modifier.size(18.dp)
+                    ) // Smaller icon
                     Spacer(Modifier.width(6.dp)) // Smaller spacer
-                    Text("Buy Premium with Diamonds", style = MaterialTheme.typography.labelLarge) // Smaller text
+                    Text(
+                        "Buy Premium with Diamonds",
+                        style = MaterialTheme.typography.labelLarge
+                    ) // Smaller text
                 }
             }
+        }
         }
         Spacer(modifier = Modifier.height(16.dp)) // Smaller bottom spacer
     }

@@ -535,7 +535,8 @@ fun MainAppScreen(
                             onNavigateToScan = { navController.navigate(Screen.Scan.route) },
                             onNavigateToPremium = { navController.navigate(Screen.Premium.route) }, // Navigate to premium from here
                             nativeAd = nativeAd, // Pass native ad
-                            showNativeAd = !isPremiumUser // Show native ad if not premium,
+                            showNativeAd = !isPremiumUser ,
+                            isPremiumUser = isPremiumUser
 
 
                             )

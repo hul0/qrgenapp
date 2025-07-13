@@ -80,7 +80,9 @@ object QRDataProcessor {
         GEO_LOCATION,
         CALENDAR_EVENT, // VEVENT
         APP_DEEP_LINK, // Custom scheme or known app schemes
-        UNKNOWN
+        UNKNOWN,
+        // NEW: Add a generic BARCODE type for non-QR barcodes
+        BARCODE
     }
 
     data class ProcessedQRData(
@@ -235,8 +237,23 @@ object QRDataProcessor {
             return ProcessedQRData(rawValue, QRContentType.APP_DEEP_LINK, mapOf("uri" to rawValue))
         }
 
-        // --- Default to TEXT ---
-        // If none of the above, consider it plain text
+        // NEW: Check if it's a known barcode format that isn't a QR code
+        // This is a heuristic. ML Kit will identify the format, but here we classify for display.
+        // If it's not a URL, WIFI, etc., and it's a common barcode length/pattern, classify as BARCODE.
+        // This is a very basic check; a more robust solution might involve passing the Barcode.format
+        // from ML Kit to this processor. For now, if it's not one of the above structured types,
+        // and ML Kit identified it, we can assume it's a generic barcode if it's not a QR code.
+        // For simplicity, if it's not a recognized structured data type, we'll default to TEXT or BARCODE.
+        // The actual ML Kit Barcode object contains the format, which is more reliable.
+        // For now, if it doesn't match any specific QR content type, we can assume it's a generic barcode
+        // if it's not just plain text.
+        // This logic might need refinement if specific barcode types need special handling beyond rawValue.
+
+        // --- Default to TEXT or BARCODE ---
+        // If none of the above specific types match, it's either plain text or a generic barcode.
+        // Since ML Kit will handle the actual barcode detection, we'll let it be `TEXT` here,
+        // and the UI can show the raw value. If we wanted to differentiate, we'd need the Barcode.format
+        // passed into this function. For now, the `rawValue` is sufficient.
         return ProcessedQRData(rawValue, QRContentType.TEXT)
     }
 
@@ -329,12 +346,13 @@ class QRScanViewModel : ViewModel() {
         }
     }
 
-    // --- NEW: Scan QR code from an image URI ---
+    // --- Scan QR code or Barcode from an image URI ---
     fun scanImage(uri: Uri, context: Context) {
         try {
             val inputImage = InputImage.fromFilePath(context, uri)
+            // NEW: Set BarcodeFormats to ALL_FORMATS to scan all supported barcode types
             val options = BarcodeScannerOptions.Builder()
-                .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
+                .setBarcodeFormats(Barcode.FORMAT_ALL_FORMATS) // Changed from FORMAT_QR_CODE
                 .build()
             val scanner = BarcodeScanning.getClient(options)
 
@@ -346,7 +364,7 @@ class QRScanViewModel : ViewModel() {
                             onCodeScanned(processedData)
                         }
                     } else {
-                        _uiState.update { it.copy(toastMessage = "No QR code found in image") }
+                        _uiState.update { it.copy(toastMessage = "No QR code or barcode found in image") } // Updated message
                     }
                 }
                 .addOnFailureListener { e ->
@@ -468,7 +486,7 @@ fun QRScanScreen(
                     ) {
                         Icon(
                             imageVector = Icons.Default.Image,
-                            contentDescription = "Import QR Code from Image",
+                            contentDescription = "Import QR Code from Image", // Keep this description as it's common
                             tint = Color.White
                         )
                     }
@@ -556,7 +574,8 @@ fun CameraPreview(
             .build()
             .also {
                 // Always analyze, no cooldown for scanning itself
-                it.setAnalyzer(cameraExecutor, QRCodeAnalyzer(onCodeScanned))
+                // NEW: Use BarcodeAnalyzer instead of QRCodeAnalyzer
+                it.setAnalyzer(cameraExecutor, BarcodeAnalyzer(onCodeScanned))
             }
 
         try {
@@ -598,11 +617,13 @@ fun CameraPreview(
 }
 
 
-private class QRCodeAnalyzer(
+// NEW: Renamed from QRCodeAnalyzer to BarcodeAnalyzer to support all barcode types
+private class BarcodeAnalyzer(
     private val onCodeScanned: (String) -> Unit,
 ) : ImageAnalysis.Analyzer {
+    // NEW: Set BarcodeFormats to ALL_FORMATS to scan all supported barcode types
     private val options = BarcodeScannerOptions.Builder()
-        .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
+        .setBarcodeFormats(Barcode.FORMAT_ALL_FORMATS) // Changed from FORMAT_QR_CODE
         .build()
 
     private val scanner = BarcodeScanning.getClient(options)
@@ -646,7 +667,7 @@ fun EnhancedScanResultDialog(
     AlertDialog(
         onDismissRequest = onDismiss,
         icon = { Icon(Icons.Default.Info, contentDescription = "Info") },
-        title = { Text("QR Code Scanned!") },
+        title = { Text("Code Scanned!") }, // Updated title
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(
@@ -756,7 +777,7 @@ fun ScannerOverlay() {
                 .clip(RoundedCornerShape(24.dp))
         )
         Text(
-            text = "Point your camera at a QR code",
+            text = "Point your camera at a QR code or barcode", // Updated text
             color = Color.White,
             fontSize = 18.sp,
             fontWeight = FontWeight.Bold,
@@ -796,7 +817,7 @@ fun PermissionDeniedScreen(onRequestPermission: () -> Unit) {
         )
         Spacer(modifier = Modifier.height(12.dp))
         Text(
-            text = "To scan QR codes, this app requires camera permission. Please grant access to continue.",
+            text = "To scan QR codes and barcodes, this app requires camera permission. Please grant access to continue.", // Updated text
             style = MaterialTheme.typography.bodyLarge,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant
