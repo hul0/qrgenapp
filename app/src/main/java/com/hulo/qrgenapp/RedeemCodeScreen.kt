@@ -38,9 +38,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.google.android.gms.ads.nativead.NativeAd
 
-// Ad Unit ID for banner ad on this screen
-private const val BANNER_AD_UNIT_ID_REDEEM_SCREEN = "ca-app-pub-3940256099942544/6300978111" // Google's Test Banner Ad Unit ID
-
 @Composable
 fun RedeemCodeScreen(
     userViewModel: UserViewModel,

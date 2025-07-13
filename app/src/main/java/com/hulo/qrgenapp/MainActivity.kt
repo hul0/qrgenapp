@@ -381,8 +381,8 @@ fun MainAppScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f), // Transparent feel
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
+                    containerColor = MaterialTheme.colorScheme.onSecondary, // Transparent feel
+                    titleContentColor = MaterialTheme.colorScheme.primary
                 ),
                 actions = {
                     // Display coin balance
@@ -393,7 +393,7 @@ fun MainAppScreen(
                         Icon(
                             imageVector = Icons.Default.MonetizationOn,
                             contentDescription = "Coin Balance",
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(20.dp) // Smaller icon
                         )
                         Spacer(modifier = Modifier.width(4.dp))
@@ -401,7 +401,7 @@ fun MainAppScreen(
                             text = userUiState.coins.toString(),
                             style = MaterialTheme.typography.titleSmall, // Smaller text
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                            color = MaterialTheme.colorScheme.primary
                         )
                     }
                     // Display diamond balance
@@ -412,7 +412,7 @@ fun MainAppScreen(
                         Icon(
                             imageVector = Icons.Default.Diamond,
                             contentDescription = "Diamond Balance",
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            tint = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.size(20.dp) // Smaller icon
                         )
                         Spacer(modifier = Modifier.width(4.dp))
@@ -420,14 +420,14 @@ fun MainAppScreen(
                             text = userUiState.diamonds.toString(),
                             style = MaterialTheme.typography.titleSmall, // Smaller text
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                            color = MaterialTheme.colorScheme.primary
                         )
                     }
                     IconButton(onClick = onToggleTheme) {
                         Icon(
                             imageVector = Icons.Default.LightMode,
                             contentDescription = "Toggle Dark Mode",
-                            tint = MaterialTheme.colorScheme.onPrimaryContainer // Consistent tint
+                            tint = MaterialTheme.colorScheme.primary // Consistent tint
                         )
                     }
                 }
@@ -532,17 +532,20 @@ fun MainAppScreen(
                         GainCoinsScreen(
                             coinBalance = userUiState.coins,
                             onShowRewardedAd = onShowRewardedAd,
+                            onNavigateToScan = { navController.navigate(Screen.Scan.route) },
                             onNavigateToPremium = { navController.navigate(Screen.Premium.route) }, // Navigate to premium from here
                             nativeAd = nativeAd, // Pass native ad
-                            showNativeAd = !isPremiumUser // Show native ad if not premium
-                        )
+                            showNativeAd = !isPremiumUser // Show native ad if not premium,
+
+
+                            )
                     }
                     composable(Screen.Redeem.route) {
                         RedeemCodeScreen(
                             userViewModel = userViewModel,
                             showToast = { message -> context.showToast(message) },
                             nativeAd = nativeAd, // Pass native ad
-                            showNativeAd = !isPremiumUser // Show native ad if not premium
+                            showNativeAd = false // Show native ad if not premium
                         )
                     }
                     composable(Screen.History.route) {
@@ -552,7 +555,7 @@ fun MainAppScreen(
                             showToast = { message -> context.showToast(message) },
                             onShowInterstitialAd = onShowInterstitialAd,
                             nativeAd = nativeAd, // Pass native ad
-                            showNativeAd = !isPremiumUser // Show native ad if not premium
+                            showNativeAd = false // Show native ad if not premium
                         )
                     }
                     composable(Screen.About.route) {

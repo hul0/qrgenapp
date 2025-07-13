@@ -36,6 +36,7 @@ private const val BANNER_AD_UNIT_ID_GAIN_COINS_SCREEN = "ca-app-pub-394025609994
 @Composable
 fun GainCoinsScreen(
     coinBalance: Int,
+    onNavigateToScan: () -> Unit,
     onShowRewardedAd: (onRewardEarned: (Int) -> Unit) -> Unit,
     onNavigateToPremium: () -> Unit, // New: Navigate to premium screen
     nativeAd: NativeAd?, // New: Native Ad
@@ -95,7 +96,7 @@ fun GainCoinsScreen(
             description = "Get +5 coins every time you successfully scan a QR code (requires internet).",
             icon = Icons.Default.QrCodeScanner,
             buttonText = "Go to Scanner",
-            onClick = { /* Navigation to scanner will be handled by bottom nav bar */ }
+            onClick = onNavigateToScan
         )
         Spacer(modifier = Modifier.height(24.dp)) // Smaller spacer
 

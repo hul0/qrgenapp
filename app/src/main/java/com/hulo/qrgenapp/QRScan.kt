@@ -1,6 +1,7 @@
 package com.hulo.qrgenapp
 
 import android.Manifest
+import android.annotation.SuppressLint
 import android.content.Context
 import android.content.Intent
 import android.net.ConnectivityManager
@@ -9,24 +10,22 @@ import android.net.Uri
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.FlashlightOff
+import androidx.compose.material.icons.filled.FlashlightOn
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.QrCodeScanner
@@ -47,6 +46,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.google.android.gms.ads.nativead.NativeAd
@@ -54,17 +54,18 @@ import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.io.IOException
 import java.util.concurrent.Executors
-import androidx.camera.core.Preview as CameraPreviewUseCase
-import androidx.core.net.toUri
-
 import android.util.Patterns // For URL and Email validation
+import androidx.camera.core.Preview as CameraPreviewUseCase
+
 
 object QRDataProcessor {
 
@@ -234,25 +235,11 @@ object QRDataProcessor {
             return ProcessedQRData(rawValue, QRContentType.APP_DEEP_LINK, mapOf("uri" to rawValue))
         }
 
-        // --- ISBN (International Standard Book Number) ---
-        // Example: 978-3-16-148410-0
-        // A simple regex might be too broad, but you could check for patterns like this
-        // if (rawValue.matches(Regex("^(978|979)-[0-9]{1,5}-[0-9]{1,7}-[0-9]{1,6}-[0-9]$"))) {
-        //     return ProcessedQRData(rawValue, QRContentType.ISBN, mapOf("isbn" to rawValue))
-        // }
-        // For simplicity, often TEXT is fine unless you have specific ISBN handling.
-
         // --- Default to TEXT ---
         // If none of the above, consider it plain text
         return ProcessedQRData(rawValue, QRContentType.TEXT)
     }
 
-    /**
-     * Helper function to parse key-value strings.
-     * Example: "S:MySSID;T:WPA;P:MyPassword"
-     * with entryDelimiter = ';', keyValueDelimiter = ':'
-     * will produce mapOf("S" to "MySSID", "T" to "WPA", "P" to "MyPassword")
-     */
     private fun parseKeyValueString(
         input: String,
         entryDelimiter: Char,
@@ -266,7 +253,6 @@ object QRDataProcessor {
             if (parts.size == 2) {
                 map[parts[0].trim()] = parts[1].trim()
             } else if (parts.isNotEmpty()) {
-                // Handle cases where a value might be empty after the delimiter (e.g. "KEY:;")
                 map[parts[0].trim()] = ""
             }
         }
@@ -279,12 +265,17 @@ data class QRScanUiState(
     val scannedCode: QRDataProcessor.ProcessedQRData? = null,
     val isResultDialogShown: Boolean = false,
     val scanCount: Int = 0,
-    val scanCooldownRemaining: Int = 0 // New state for scan cooldown
+    val toastMessage: String? = null,
+    val coinCooldownRemaining: Int = 0 // NEW: Cooldown for coin rewards
 )
 
 class QRScanViewModel : ViewModel() {
     private val _uiState = MutableStateFlow(QRScanUiState())
     val uiState: StateFlow<QRScanUiState> = _uiState.asStateFlow()
+
+    // Use a MutableStateFlow to make it observable and persist across process death if needed
+    private val _lastCoinAwardTime = MutableStateFlow(0L)
+    private val COIN_COOLDOWN_MILLIS = 30 * 1000L // 30 seconds
 
     fun onPermissionResult(isGranted: Boolean) {
         _uiState.update { it.copy(hasCameraPermission = isGranted) }
@@ -308,36 +299,126 @@ class QRScanViewModel : ViewModel() {
         }
     }
 
-    // Function to start the scan cooldown
-    fun startScanCooldown() {
-        // Only start if not already in cooldown or if cooldown just finished (i.e., it's 0)
-        if (_uiState.value.scanCooldownRemaining == 0) {
-            _uiState.update { it.copy(scanCooldownRemaining = 10) } // 10 seconds cooldown
-            viewModelScope.launch {
-                for (i in 9 downTo 0) {
-                    delay(1000L)
-                    _uiState.update { it.copy(scanCooldownRemaining = i) }
-                }
-                // After cooldown, ensure it's explicitly 0
-                _uiState.update { it.copy(scanCooldownRemaining = 0) }
-            }
+    // NEW: Function to handle coin award logic with cooldown
+    fun tryAwardCoins(onAddCoins: (Int) -> Unit, context: Context) {
+        val currentTime = System.currentTimeMillis()
+
+        if (currentTime - _lastCoinAwardTime.value >= COIN_COOLDOWN_MILLIS) {
+            onAddCoins(5)
+            _lastCoinAwardTime.value = currentTime // Update the observable state
+            _uiState.update { it.copy(toastMessage = "You earned +5 coins!", coinCooldownRemaining = 0) }
+            startCoinCooldownTimer()
+        } else {
+            val remaining = (COIN_COOLDOWN_MILLIS - (currentTime - _lastCoinAwardTime.value)) / 1000
+            _uiState.update { it.copy(toastMessage = "Next coins in ${remaining + 1}s.") }
         }
+    }
+
+    private var coinCooldownJob: Job? = null
+
+    private fun startCoinCooldownTimer() {
+        coinCooldownJob?.cancel() // Cancel previous job if active
+        val COIN_COOLDOWN_SECONDS = 30
+        _uiState.update { it.copy(coinCooldownRemaining = COIN_COOLDOWN_SECONDS) }
+        coinCooldownJob = viewModelScope.launch {
+            for (i in COIN_COOLDOWN_SECONDS - 1 downTo 0) {
+                delay(1000L)
+                _uiState.update { it.copy(coinCooldownRemaining = i) }
+            }
+            _uiState.update { it.copy(coinCooldownRemaining = 0) }
+        }
+    }
+
+    // --- NEW: Scan QR code from an image URI ---
+    fun scanImage(uri: Uri, context: Context) {
+        try {
+            val inputImage = InputImage.fromFilePath(context, uri)
+            val options = BarcodeScannerOptions.Builder()
+                .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
+                .build()
+            val scanner = BarcodeScanning.getClient(options)
+
+            scanner.process(inputImage)
+                .addOnSuccessListener { barcodes ->
+                    if (barcodes.isNotEmpty()) {
+                        barcodes.first().rawValue?.let { rawValue ->
+                            val processedData = QRDataProcessor.process(rawValue)
+                            onCodeScanned(processedData)
+                        }
+                    } else {
+                        _uiState.update { it.copy(toastMessage = "No QR code found in image") }
+                    }
+                }
+                .addOnFailureListener { e ->
+                    Log.e("QRScan", "Image scanning failed", e)
+                    _uiState.update { it.copy(toastMessage = "Failed to scan image.") }
+                }
+        } catch (e: IOException) {
+            Log.e("QRScan", "Failed to load image for scanning", e)
+            _uiState.update { it.copy(toastMessage = "Could not load the selected image.") }
+        }
+    }
+
+    fun toastMessageShown() {
+        _uiState.update { it.copy(toastMessage = null) }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        coinCooldownJob?.cancel()
     }
 }
 
 @Composable
 fun QRScanScreen(
     viewModel: QRScanViewModel,
-    onAddCoins: (Int) -> Unit, // Callback to add coins
-    onAddScanToHistory: (String) -> Unit, // New: Callback to add scan to history
+    onAddCoins: (Int) -> Unit,
+    onAddScanToHistory: (String) -> Unit,
     onShowInterstitialAd: () -> Unit,
-    isPremiumUser: Boolean, // New: Premium status
-    showToast: (String) -> Unit, // Callback for showing toasts
-    nativeAd: NativeAd?, // New: Native Ad
-    showNativeAd: Boolean // New: Control native ad visibility
+    isPremiumUser: Boolean,
+    showToast: (String) -> Unit,
+    nativeAd: NativeAd?,
+    showNativeAd: Boolean
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val context = LocalContext.current
+
+    var isFlashlightOn by remember { mutableStateOf(false) }
+    var hasFlashUnit by remember { mutableStateOf(false) }
+
+    val imagePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent(),
+        onResult = { uri: Uri? ->
+            uri?.let {
+                viewModel.scanImage(it, context)
+            }
+        }
+    )
+
+    uiState.toastMessage?.let { message ->
+        LaunchedEffect(message) {
+            context.showToast(message)
+            viewModel.toastMessageShown()
+        }
+    }
+
+    val lastProcessedScanCount = remember { mutableStateOf(viewModel.uiState.value.scanCount) }
+    LaunchedEffect(uiState.scanCount) {
+        if (uiState.scanCount > lastProcessedScanCount.value) {
+            uiState.scannedCode?.rawValue?.let {
+                onAddScanToHistory(it)
+                if (isNetworkAvailable(context)) {
+                    viewModel.tryAwardCoins(onAddCoins, context) // Call ViewModel to handle coin logic
+                    if (!isPremiumUser) {
+                        onShowInterstitialAd()
+                    }
+                } else {
+                    context.showToast("No internet connection. Coins not awarded.")
+                }
+            }
+            lastProcessedScanCount.value = uiState.scanCount
+        }
+    }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission(),
@@ -354,16 +435,9 @@ fun QRScanScreen(
     }
 
     Column(modifier = Modifier.fillMaxSize()) {
-        ScanStatsCard(
-            scanCount = uiState.scanCount,
-            isPremiumUser = isPremiumUser // Pass premium status
-        )
 
-        // Native Ad Section
-        NativeAdViewComposable(
-            nativeAd = nativeAd,
-            showAd = showNativeAd
-        )
+
+
 
         Box(
             modifier = Modifier
@@ -372,70 +446,62 @@ fun QRScanScreen(
         ) {
             if (uiState.hasCameraPermission) {
                 CameraPreview(
-                    canScan = uiState.scanCooldownRemaining == 0, // Pass canScan state
+                    isFlashlightOn = isFlashlightOn,
+                    onHasFlashUnit = { hasFlashUnit = it },
                     onCodeScanned = { rawValue ->
                         val processedData = QRDataProcessor.process(rawValue)
                         viewModel.onCodeScanned(processedData)
-                        onAddScanToHistory(rawValue) // Add to history
-                        // Check for internet connection before adding coins
-                        if (isNetworkAvailable(context)) {
-                            onAddCoins(5) // Add 5 coins for scanning
-                            if (!isPremiumUser) { // Only show interstitial if not premium
-                                onShowInterstitialAd() // Show interstitial ad after scan
-                            }
-                        } else {
-                            context.showToast("No internet connection. Coins not awarded.")
-                        }
-                    },
-                    onScanInitiated = {
-                        viewModel.startScanCooldown() // Start cooldown when a scan is detected
                     }
                 )
                 ScannerOverlay()
 
-                // Display countdown if cooldown is active
-                if (uiState.scanCooldownRemaining > 0) {
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    IconButton(
+                        onClick = { imagePickerLauncher.launch("image/*") },
+                        modifier = Modifier
+                            .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Image,
+                            contentDescription = "Import QR Code from Image",
+                            tint = Color.White
+                        )
+                    }
+
+                    if (hasFlashUnit) {
+                        IconButton(
+                            onClick = { isFlashlightOn = !isFlashlightOn },
+                            modifier = Modifier
+                                .background(Color.Black.copy(alpha = 0.5f), CircleShape)
+                        ) {
+                            Icon(
+                                imageVector = if (isFlashlightOn) Icons.Default.FlashlightOn else Icons.Default.FlashlightOff,
+                                contentDescription = "Toggle Flashlight",
+                                tint = Color.White
+                            )
+                        }
+                    }
+                }
+
+                // NEW: Coin Cooldown Overlay
+                if (uiState.coinCooldownRemaining > 0) {
                     Box(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .background(Color.Black.copy(alpha = 0.5f)),
-                        contentAlignment = Alignment.Center
+                            .align(Alignment.Center)
+                            .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(12.dp))
+                            .padding(horizontal = 20.dp, vertical = 10.dp)
                     ) {
-                        Card(
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier.padding(24.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.QrCodeScanner,
-                                    contentDescription = "Scanning Cooldown",
-                                    modifier = Modifier.size(64.dp),
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                                Text(
-                                    text = "Scanning Cooldown",
-                                    style = MaterialTheme.typography.headlineSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
-                                Text(
-                                    text = "Next scan in ${uiState.scanCooldownRemaining} seconds...",
-                                    style = MaterialTheme.typography.titleLarge,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.secondary
-                                )
-                                CircularProgressIndicator(
-                                    progress = uiState.scanCooldownRemaining / 10f,
-                                    modifier = Modifier.size(48.dp),
-                                    color = MaterialTheme.colorScheme.tertiary
-                                )
-                            }
-                        }
+                        Text(
+                            text = "Next coins in ${uiState.coinCooldownRemaining}s",
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
 
@@ -451,163 +517,89 @@ fun QRScanScreen(
         EnhancedScanResultDialog(
             result = uiState.scannedCode!!,
             onDismiss = { viewModel.dismissResultDialog() },
-            isPremiumUser = isPremiumUser, // Pass premium status
+            isPremiumUser = isPremiumUser,
             showToast = showToast
         )
     }
 }
 
-@Composable
-fun ScanStatsCard(
-    scanCount: Int,
-    isPremiumUser: Boolean // New parameter
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp),
-        shape = RoundedCornerShape(16.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(
-                    text = "Scans Today",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Text(
-                    text = scanCount.toString(),
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
 
-            // Display premium status or prompt to go premium
-            if (isPremiumUser) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Star,
-                        contentDescription = "Premium User",
-                        modifier = Modifier.size(24.dp),
-                        tint = MaterialTheme.colorScheme.tertiary
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        text = "Premium User",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.tertiary
-                    )
-                }
-            } else {
-                Button(
-                    onClick = { /* This button can navigate to PremiumPlanScreen if needed */ },
-                    modifier = Modifier.height(36.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
-                ) {
-                    Icon(
-                        Icons.Default.Star,
-                        contentDescription = "Go Premium",
-                        modifier = Modifier.size(16.dp)
-                    )
-                    Spacer(Modifier.width(4.dp))
-                    Text("Go Premium", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSecondaryContainer)
-                }
-            }
-        }
-    }
-}
-
+@SuppressLint("RestrictedApi", "VisibleForTests")
 @Composable
 fun CameraPreview(
-    canScan: Boolean, // New parameter to control scanning
+    isFlashlightOn: Boolean,
+    onHasFlashUnit: (Boolean) -> Unit,
     onCodeScanned: (String) -> Unit,
-    onScanInitiated: () -> Unit // New callback for when a scan is detected
 ) {
     val lifecycleOwner = LocalLifecycleOwner.current
     val context = LocalContext.current
     val cameraProviderFuture = remember { ProcessCameraProvider.getInstance(context) }
     val cameraExecutor = remember { Executors.newSingleThreadExecutor() }
+    var camera by remember { mutableStateOf<Camera?>(null) } // State to hold the Camera instance
 
+    val previewView = remember { PreviewView(context) } // Create PreviewView once and remember it
+
+    // Effect to bind camera and set up use cases
+    LaunchedEffect(lifecycleOwner, cameraProviderFuture, previewView) {
+        val cameraProvider = cameraProviderFuture.get()
+
+        val previewUseCase = CameraPreviewUseCase.Builder().build().also {
+            it.setSurfaceProvider(previewView.surfaceProvider)
+        }
+
+        val cameraSelector = CameraSelector.Builder()
+            .requireLensFacing(CameraSelector.LENS_FACING_BACK)
+            .build()
+
+        val imageAnalysisUseCase = ImageAnalysis.Builder()
+            .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+            .build()
+            .also {
+                // Always analyze, no cooldown for scanning itself
+                it.setAnalyzer(cameraExecutor, QRCodeAnalyzer(onCodeScanned))
+            }
+
+        try {
+            cameraProvider.unbindAll() // Unbind previous use cases
+            camera = cameraProvider.bindToLifecycle(
+                lifecycleOwner,
+                cameraSelector,
+                previewUseCase,
+                imageAnalysisUseCase
+            )
+            onHasFlashUnit(camera?.cameraInfo?.hasFlashUnit() == true)
+        } catch (e: Exception) {
+            Log.e("QRScan", "CameraX binding failed", e)
+        }
+
+        // Cleanup when composable leaves composition
+//        onDispose {
+//            cameraExecutor.shutdown()
+//            cameraProvider.unbindAll()
+//        }
+    }
+
+    // Effect to control flashlight based on state
+    LaunchedEffect(isFlashlightOn, camera) {
+        camera?.cameraControl?.enableTorch(isFlashlightOn)
+    }
+
+    // The AndroidView displays the PreviewView created above
     AndroidView(
         modifier = Modifier.fillMaxSize(),
-        factory = { ctx ->
-            val previewView = PreviewView(ctx)
-            val cameraProvider = cameraProviderFuture.get()
-
-            val preview = CameraPreviewUseCase.Builder().build().also {
-                it.setSurfaceProvider(previewView.surfaceProvider)
-            }
-
-            val cameraSelector = CameraSelector.Builder()
-                .requireLensFacing(CameraSelector.LENS_FACING_BACK)
-                .build()
-
-            val imageAnalysis = ImageAnalysis.Builder()
-                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                .build()
-                .also {
-                    // Pass canScan and onScanInitiated to the analyzer
-                    it.setAnalyzer(cameraExecutor, QRCodeAnalyzer(canScan, onCodeScanned, onScanInitiated))
-                }
-
-            try {
-                cameraProvider.unbindAll()
-                cameraProvider.bindToLifecycle(
-                    lifecycleOwner,
-                    cameraSelector,
-                    preview,
-                    imageAnalysis
-                )
-            } catch (e: Exception) {
-                Log.e("QRScan", "CameraX binding failed", e)
-            }
-
-            previewView
+        factory = {
+            previewView // Return the remembered PreviewView
         },
-        update = { previewView ->
-            // Update the analyzer with the latest canScan state
-            val cameraProvider = cameraProviderFuture.get()
-            cameraProvider.unbindAll() // Unbind to rebind with updated analyzer
-            val preview = CameraPreviewUseCase.Builder().build().also {
-                it.setSurfaceProvider(previewView.surfaceProvider)
-            }
-            val cameraSelector = CameraSelector.Builder()
-                .requireLensFacing(CameraSelector.LENS_FACING_BACK)
-                .build()
-            val imageAnalysis = ImageAnalysis.Builder()
-                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                .build()
-                .also {
-                    it.setAnalyzer(cameraExecutor, QRCodeAnalyzer(canScan, onCodeScanned, onScanInitiated))
-                }
-            try {
-                cameraProvider.bindToLifecycle(
-                    lifecycleOwner,
-                    cameraSelector,
-                    preview,
-                    imageAnalysis
-                )
-            } catch (e: Exception) {
-                Log.e("QRScan", "CameraX binding failed during update", e)
-            }
+        update = {
+            // No need to re-bind camera here.
+            // The LaunchedEffects handle binding and torch control.
         }
     )
 }
 
+
 private class QRCodeAnalyzer(
-    private val canScan: Boolean, // New parameter to control scanning
     private val onCodeScanned: (String) -> Unit,
-    private val onScanInitiated: () -> Unit // New callback
 ) : ImageAnalysis.Analyzer {
     private val options = BarcodeScannerOptions.Builder()
         .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
@@ -617,11 +609,6 @@ private class QRCodeAnalyzer(
 
     @androidx.annotation.OptIn(androidx.camera.core.ExperimentalGetImage::class)
     override fun analyze(imageProxy: androidx.camera.core.ImageProxy) {
-        if (!canScan) { // Check canScan before processing
-            imageProxy.close()
-            return
-        }
-
         val mediaImage = imageProxy.image
         if (mediaImage != null) {
             val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
@@ -630,8 +617,7 @@ private class QRCodeAnalyzer(
                 .addOnSuccessListener { barcodes ->
                     if (barcodes.isNotEmpty()) {
                         barcodes.first().rawValue?.let {
-                            onScanInitiated() // Notify ViewModel to start cooldown
-                            onCodeScanned(it)
+                            onCodeScanned(it) // No onScanInitiated call
                         }
                     }
                 }
@@ -641,6 +627,8 @@ private class QRCodeAnalyzer(
                 .addOnCompleteListener {
                     imageProxy.close()
                 }
+        } else {
+            imageProxy.close() // Always close the imageProxy
         }
     }
 }
@@ -649,7 +637,7 @@ private class QRCodeAnalyzer(
 fun EnhancedScanResultDialog(
     result: QRDataProcessor.ProcessedQRData,
     onDismiss: () -> Unit,
-    isPremiumUser: Boolean, // New: Premium status
+    isPremiumUser: Boolean,
     showToast: (String) -> Unit
 ) {
     val context = LocalContext.current
@@ -824,7 +812,6 @@ fun PermissionDeniedScreen(onRequestPermission: () -> Unit) {
     }
 }
 
-// Function to check network availability
 fun isNetworkAvailable(context: Context): Boolean {
     val connectivityManager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
     val network = connectivityManager.activeNetwork ?: return false

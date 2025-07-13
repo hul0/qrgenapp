@@ -22,14 +22,12 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.google.android.gms.ads.nativead.NativeAd
-
-// Ad Unit ID for banner ad on this screen
-private const val BANNER_AD_UNIT_ID_HOME_SCREEN = "ca-app-pub-3940256099942544/6300978111" // Google's Test Banner Ad Unit ID
 
 @Composable
 fun HomeScreen(
@@ -60,7 +58,7 @@ fun HomeScreen(
             Spacer(modifier = Modifier.height(8.dp)) // Small spacer after ad
         }
 
-        Spacer(modifier = Modifier.height(16.dp)) // Smaller top spacer
+        Spacer(modifier = Modifier.height(36.dp)) // Smaller top spacer
 
         // Balance Card
         Card(
@@ -68,7 +66,7 @@ fun HomeScreen(
                 .fillMaxWidth()
                 .padding(horizontal = 4.dp), // Smaller horizontal padding
             shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.9f)), // Transparent feel
+            colors = CardDefaults.cardColors(containerColor = Color(83, 233, 239, 255)), // Transparent feel
             elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
             Column(
@@ -82,7 +80,7 @@ fun HomeScreen(
                     text = "Your Balances",
                     style = MaterialTheme.typography.titleMedium, // Smaller title
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimaryContainer
+                    color = MaterialTheme.colorScheme.secondary
                 )
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -99,13 +97,13 @@ fun HomeScreen(
                         icon = Icons.Default.Diamond,
                         label = "Diamonds",
                         value = diamondBalance.toString(),
-                        tint = MaterialTheme.colorScheme.tertiary
+                        tint = MaterialTheme.colorScheme.secondary
                     )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp)) // Smaller spacer
+        Spacer(modifier = Modifier.height(44.dp)) // Smaller spacer
 
         // Quick Actions Grid
         Text(
