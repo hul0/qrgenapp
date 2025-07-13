@@ -22,6 +22,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -46,169 +47,222 @@ fun HomeScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background) // Ensure background matches theme
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(
+                        Color(0xFF8B5CF6),
+                        Color(0xFF6366F1),
+                        Color(0xFF4F46E5)
+                    )
+                )
+            )
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 12.dp), // Overall smaller horizontal padding
+            .padding(horizontal = 16.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Top
     ) {
         // Banner Ad at the top of the screen
         if (showNativeAd) { // showNativeAd is true if not premium
-
-            Spacer(modifier = Modifier.height(8.dp)) // Small spacer after ad
+            Spacer(modifier = Modifier.height(8.dp))
         }
 
-        Spacer(modifier = Modifier.height(36.dp)) // Smaller top spacer
+        Spacer(modifier = Modifier.height(24.dp))
 
-        // Balance Card
+        // Welcome Section
+        Text(
+            text = "Hello, User!",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color = Color.White,
+            modifier = Modifier.padding(bottom = 8.dp)
+        )
+
+        Text(
+            text = "What would you like to do today?",
+            style = MaterialTheme.typography.bodyLarge,
+            color = Color.White.copy(alpha = 0.9f),
+            modifier = Modifier.padding(bottom = 24.dp)
+        )
+
+        // Balance Card with modern styling
         Card(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 4.dp), // Smaller horizontal padding
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = Color(83, 233, 239, 255)), // Transparent feel
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+                .padding(horizontal = 8.dp),
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
         ) {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp), // Smaller padding
+                    .padding(24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(8.dp) // Smaller spacing
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 Text(
                     text = "Your Balances",
-                    style = MaterialTheme.typography.titleMedium, // Smaller title
+                    style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.secondary
+                    color = Color(0xFF1F2937)
                 )
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceAround,
+                    horizontalArrangement = Arrangement.SpaceEvenly,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     BalanceItem(
                         icon = Icons.Default.MonetizationOn,
                         label = "Coins",
                         value = coinBalance.toString(),
-                        tint = MaterialTheme.colorScheme.secondary
+                        tint = Color(0xFFEAB308)
                     )
+
+                    Box(
+                        modifier = Modifier
+                            .width(1.dp)
+                            .height(60.dp)
+                            .background(Color(0xFFE5E7EB))
+                    )
+
                     BalanceItem(
                         icon = Icons.Default.Diamond,
                         label = "Diamonds",
                         value = diamondBalance.toString(),
-                        tint = MaterialTheme.colorScheme.secondary
+                        tint = Color(0xFF3B82F6)
                     )
                 }
             }
         }
 
-        Spacer(modifier = Modifier.height(44.dp)) // Smaller spacer
+        Spacer(modifier = Modifier.height(32.dp))
 
-        // Quick Actions Grid
+        // Quick Actions Section
         Text(
             text = "Quick Actions",
-            style = MaterialTheme.typography.titleLarge, // Smaller title
+            style = MaterialTheme.typography.titleLarge,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground,
+            color = Color.White,
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(start = 8.dp, bottom = 12.dp) // Adjusted padding
+                .padding(start = 8.dp, bottom = 16.dp)
         )
 
+        // Action buttons in a 2x3 grid
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 4.dp), // Smaller horizontal padding
-            verticalArrangement = Arrangement.spacedBy(10.dp) // Smaller spacing between rows
+                .padding(horizontal = 8.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceAround
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 QuickActionButton(
                     icon = Icons.Default.QrCodeScanner,
                     label = "Scan QR",
                     onClick = onNavigateToScan,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    backgroundColor = Color.White,
+                    iconColor = Color(0xFF10B981)
                 )
-                Spacer(modifier = Modifier.width(10.dp))
                 QuickActionButton(
                     icon = Icons.Default.Create,
                     label = "Generate QR",
                     onClick = onNavigateToGenerate,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    backgroundColor = Color.White,
+                    iconColor = Color(0xFF6366F1)
                 )
             }
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceAround
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 QuickActionButton(
                     icon = Icons.Default.MonetizationOn,
                     label = "Earn Coins",
                     onClick = onNavigateToGainCoins,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    backgroundColor = Color.White,
+                    iconColor = Color(0xFFEAB308)
                 )
-                Spacer(modifier = Modifier.width(10.dp))
                 QuickActionButton(
                     icon = Icons.Default.CardGiftcard,
                     label = "Redeem Code",
                     onClick = onNavigateToRedeem,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    backgroundColor = Color.White,
+                    iconColor = Color(0xFFEC4899)
                 )
             }
+
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceAround
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 QuickActionButton(
                     icon = Icons.Default.History,
                     label = "History",
                     onClick = onNavigateToHistory,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    backgroundColor = Color.White,
+                    iconColor = Color(0xFF8B5CF6)
                 )
-                Spacer(modifier = Modifier.width(10.dp))
                 QuickActionButton(
                     icon = Icons.Default.Star,
                     label = "Premium",
                     onClick = onNavigateToPremium,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier.weight(1f),
+                    backgroundColor = Color(0xFFFFD700),
+                    iconColor = Color(0xFFB45309)
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(24.dp)) // Smaller spacer
+        Spacer(modifier = Modifier.height(32.dp))
 
         // Native Ad Section
         NativeAdViewComposable(
             nativeAd = nativeAd,
             showAd = showNativeAd
         )
-        Spacer(modifier = Modifier.height(16.dp)) // Small spacer after ad
+
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }
 
 @Composable
-fun BalanceItem(icon: ImageVector, label: String, value: String, tint: androidx.compose.ui.graphics.Color) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+fun BalanceItem(
+    icon: ImageVector,
+    label: String,
+    value: String,
+    tint: Color
+) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
         Icon(
             imageVector = icon,
             contentDescription = label,
-            modifier = Modifier.size(28.dp), // Smaller icon
+            modifier = Modifier.size(32.dp),
             tint = tint
         )
-        Spacer(modifier = Modifier.height(4.dp)) // Smaller spacer
         Text(
             text = label,
-            style = MaterialTheme.typography.labelMedium, // Smaller label
-            color = MaterialTheme.colorScheme.onPrimaryContainer
+            style = MaterialTheme.typography.bodyMedium,
+            color = Color(0xFF6B7280),
+            fontWeight = FontWeight.Medium
         )
         Text(
             text = value,
-            style = MaterialTheme.typography.titleLarge, // Smaller value
+            style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onPrimaryContainer
+            color = Color(0xFF1F2937)
         )
     }
 }
@@ -218,38 +272,41 @@ fun QuickActionButton(
     icon: ImageVector,
     label: String,
     onClick: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    backgroundColor: Color = Color.White,
+    iconColor: Color = Color(0xFF6366F1)
 ) {
     Card(
         modifier = modifier
-            .height(100.dp) // Smaller card height
+            .height(120.dp)
             .fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.9f)), // Transparent feel
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp) // Smaller elevation
+        colors = CardDefaults.cardColors(containerColor = backgroundColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
     ) {
         TextButton(
             onClick = onClick,
             modifier = Modifier.fillMaxSize(),
-            contentPadding = PaddingValues(8.dp) // Smaller padding
+            contentPadding = PaddingValues(16.dp)
         ) {
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+                verticalArrangement = Arrangement.Center,
+                modifier = Modifier.fillMaxSize()
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = label,
-                    modifier = Modifier.size(36.dp), // Smaller icon
-                    tint = MaterialTheme.colorScheme.secondary
+                    modifier = Modifier.size(40.dp),
+                    tint = iconColor
                 )
-                Spacer(modifier = Modifier.height(6.dp)) // Smaller spacer
+                Spacer(modifier = Modifier.height(8.dp))
                 Text(
                     text = label,
-                    style = MaterialTheme.typography.labelLarge, // Smaller text
+                    style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
                     textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = Color(0xFF1F2937)
                 )
             }
         }
