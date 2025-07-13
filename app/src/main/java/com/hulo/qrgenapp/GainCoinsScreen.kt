@@ -44,7 +44,8 @@ fun GainCoinsScreen(
     isPremiumUser: Boolean,
     dailyBonusAvailable: Boolean, // New: Daily bonus available state
     dailyBonusAmount: Int, // New: Daily bonus amount
-    dailyStreak: Int, // New: Daily streak
+    dailyStreak: Int, // New: Daily streak (0-6)
+    dailyBonusPattern: List<Int>, // New: Daily bonus pattern for upcoming rewards
     onClaimDailyBonus: () -> Unit // New: Callback to claim daily bonus
 ) {
     Column(
@@ -55,11 +56,11 @@ fun GainCoinsScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Top
     ) {
-        // Banner Ad at the top of the screen
-        if (showNativeAd) { // showNativeAd is true if not premium
-
-            Spacer(modifier = Modifier.height(8.dp)) // Small spacer after ad
-        }
+        // Banner Ad at the top of the screen (if you want one here, uncomment and add)
+        // if (showNativeAd) {
+        //     BannerAd(adUnitId = BANNER_AD_UNIT_ID_GAIN_COINS_SCREEN)
+        //     Spacer(modifier = Modifier.height(8.dp))
+        // }
 
         Spacer(modifier = Modifier.height(16.dp)) // Smaller top spacer
 
@@ -91,13 +92,68 @@ fun GainCoinsScreen(
         if (dailyBonusAvailable) {
             CoinEarningMethodCard(
                 title = "Daily Login Bonus!",
-                description = "Claim your ${dailyBonusAmount} coins for logging in today! Streak: ${dailyStreak + 1} days.",
+                description = "Claim your ${dailyBonusAmount} coins for logging in today! Current streak: ${dailyStreak + 1} days.",
                 icon = Icons.Default.Star, // Using Star icon for daily bonus
                 buttonText = "Claim Daily Bonus",
-                onClick = onClaimDailyBonus
+                onClick = onClaimDailyBonus // This will trigger the ad and claim in MainActivity
             )
             Spacer(modifier = Modifier.height(12.dp)) // Smaller spacer
         }
+
+        // Upcoming Daily Rewards Section
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.9f)),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "Upcoming Daily Rewards",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceAround,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    dailyBonusPattern.forEachIndexed { index, amount ->
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(
+                                imageVector = Icons.Default.MonetizationOn,
+                                contentDescription = null,
+                                modifier = Modifier.size(24.dp),
+                                tint = if (index == dailyStreak && dailyBonusAvailable) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                            )
+                            Text(
+                                text = "+$amount",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (index == dailyStreak && dailyBonusAvailable) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                            )
+                            Text(
+                                text = "Day ${index + 1}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(12.dp)) // Smaller spacer
+
 
         // Ways to earn coins with updated styling
         CoinEarningMethodCard(

@@ -25,7 +25,8 @@ data class UserUiState(
     val lastLoginDate: String? = null, // New: Last login date for daily bonus
     val dailyStreak: Int = 0, // New: Daily login streak (0-6 for weekly cycle)
     val dailyBonusAvailable: Boolean = false, // New: Flag for daily bonus availability
-    val dailyBonusAmount: Int = 0 // New: Amount of daily bonus coins
+    val dailyBonusAmount: Int = 0, // New: Amount of daily bonus coins
+    val dailyBonusPattern: List<Int> = emptyList() // New: Expose the daily bonus pattern
 )
 
 class UserViewModel(private val userPreferences: UserPreferences) : ViewModel() {
@@ -69,7 +70,8 @@ class UserViewModel(private val userPreferences: UserPreferences) : ViewModel() 
                             isPremium = false,
                             lastLoginDate = null,
                             dailyStreak = 0,
-                            isLoading = false
+                            isLoading = false,
+                            dailyBonusPattern = DAILY_BONUS_COINS // Initialize pattern
                         )
                     }
                 } else {
@@ -91,7 +93,8 @@ class UserViewModel(private val userPreferences: UserPreferences) : ViewModel() 
                             scanHistory = currentScanHistory,
                             lastLoginDate = lastLoginDate,
                             dailyStreak = dailyStreak,
-                            isLoading = false
+                            isLoading = false,
+                            dailyBonusPattern = DAILY_BONUS_COINS // Initialize pattern
                         )
                     }
                 }

@@ -622,8 +622,17 @@ fun MainAppScreen(
                             dailyBonusAvailable = userUiState.dailyBonusAvailable, // Pass daily bonus state
                             dailyBonusAmount = userUiState.dailyBonusAmount, // Pass daily bonus amount
                             dailyStreak = userUiState.dailyStreak, // Pass daily streak
+                            dailyBonusPattern = userUiState.dailyBonusPattern, // Pass daily bonus pattern
                             onClaimDailyBonus = {
-                                showDailyBonusDialog = true // Trigger dialog from GainCoinsScreen
+                                // This lambda will be called from GainCoinsScreen to trigger the ad and claim
+                                onShowRewardedInterstitialAdForDailyBonus { adWatchedAndRewarded ->
+                                    if (adWatchedAndRewarded) {
+                                        userViewModel.claimDailyBonus()
+                                        // No need to dismiss dialog here, as it's handled in MainActivity
+                                    } else {
+                                        context.showToast("Ad not ready or not watched. Please try again.")
+                                    }
+                                }
                             }
                         )
                     }
@@ -664,7 +673,7 @@ fun MainAppScreen(
         }
     }
 
-    // Daily Bonus Dialog
+    // Daily Bonus Dialog - Keep this for initial notification on app launch
     if (showDailyBonusDialog && userUiState.dailyBonusAvailable) {
         AlertDialog(
             onDismissRequest = { showDailyBonusDialog = false },
