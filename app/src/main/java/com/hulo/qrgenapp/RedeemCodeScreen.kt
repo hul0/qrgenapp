@@ -227,8 +227,9 @@ private fun StoreItem(icon: ImageVector, title: String, price: String, iconColor
             Spacer(modifier = Modifier.width(16.dp))
             Text(title, color = Color.White, style = MaterialTheme.typography.titleMedium)
         }
-        Button(onClick = { /* Disabled */ }, enabled = false, shape = RoundedCornerShape(12.dp)) {
-            Text(price)
+        Button(onClick = { /* Disabled */ }, enabled = false, shape = RoundedCornerShape(12.dp)
+            ) {
+            Text(price , color = Color.White)
         }
     }
 }

@@ -26,8 +26,11 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Color.Companion.Black
+import androidx.compose.ui.graphics.Color.Companion.Blue
 import androidx.compose.ui.graphics.Color.Companion.LightGray
 import androidx.compose.ui.graphics.Color.Companion.White
+import androidx.compose.ui.graphics.Color.Companion.Yellow
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -90,7 +93,7 @@ class MainActivity : ComponentActivity() {
     private var userActionCount = 0
     private var lastInterstitialTime = 0L
     private val minInterstitialInterval = 40000L // 40 seconds
-    private val actionsBeforeInterstitial = 7
+    private val actionsBeforeInterstitial = 5
 
     private var isInterstitialLoading = false
     private var isRewardedLoading = false
@@ -444,18 +447,21 @@ fun MainAppScreen(
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Purple700),
                 actions = {
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 8.dp)) {
-                        Icon(Icons.Default.MonetizationOn, "Coin Balance", tint = LightGray, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Default.MonetizationOn, "Coin Balance", tint = Yellow, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(4.dp))
                         Text(userUiState.coins.toString(), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = White)
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 8.dp)) {
-                        Icon(Icons.Default.Diamond, "Diamond Balance", tint = LightGray, modifier = Modifier.size(20.dp))
+                        Icon(Icons.Default.Diamond, "Diamond Balance", tint = Color(
+                            37,
+                            243,
+                            225,
+                            255
+                        ), modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(4.dp))
                         Text(userUiState.diamonds.toString(), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = White)
                     }
-                    IconButton(onClick = onToggleTheme) {
-                        Icon(Icons.Default.LightMode, "Toggle Theme", tint = White)
-                    }
+
                 }
             )
         },
@@ -598,13 +604,13 @@ fun MainAppScreen(
     if (showDailyBonusDialog && userUiState.dailyBonusAvailable) {
         AlertDialog(
             onDismissRequest = { showDailyBonusDialog = false },
-            icon = { Icon(Icons.Default.CardGiftcard, "Daily Bonus", tint = White) },
-            title = { Text("Daily Login Bonus!", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = White) },
+            icon = { Icon(Icons.Default.CardGiftcard, "Daily Bonus", tint = Black) },
+            title = { Text("Daily Login Bonus!", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold, color = Black) },
             text = {
                 Column {
-                    Text("Claim your daily bonus of ${userUiState.dailyBonusAmount} coins!", style = MaterialTheme.typography.bodyLarge, color = LightGray)
+                    Text("Claim your daily bonus of ${userUiState.dailyBonusAmount} coins!", style = MaterialTheme.typography.bodyLarge)
                     Spacer(Modifier.height(4.dp))
-                    Text("Current streak: ${userUiState.dailyStreak + 1} days.", style = MaterialTheme.typography.bodyMedium, color = LightGray)
+                    Text("Current streak: ${userUiState.dailyStreak + 1} days.", style = MaterialTheme.typography.bodyMedium, color = Black)
                 }
             },
             confirmButton = {
@@ -625,7 +631,7 @@ fun MainAppScreen(
             },
             dismissButton = {
                 OutlinedButton(onClick = { showDailyBonusDialog = false }, shape = RoundedCornerShape(10.dp)) {
-                    Text("Later", color = LightGray)
+                    Text("Later", color = Black)
                 }
             }
         )
@@ -658,7 +664,7 @@ fun NativeAdViewComposable(
     modifier: Modifier = Modifier,
     showAd: Boolean = true
 ) {
-    val adCardColor = Color(0xFF4A00A0)
+    val adCardColor = Color(0x41FFFFFF)
 
     if (!showAd) {
         // Don't show anything if the flag is false
@@ -752,7 +758,7 @@ fun NativeAdViewComposable(
             // "Sponsored" label, as in your original design
             Text(
                 text = "Sponsored",
-                style = MaterialTheme.typography.labelSmall,
+                style = MaterialTheme.typography.labelMedium,
                 color = Color.LightGray,
                 modifier = Modifier
                     .align(Alignment.TopEnd)
