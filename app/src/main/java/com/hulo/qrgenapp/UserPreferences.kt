@@ -11,146 +11,152 @@ class UserPreferences(context: Context) {
     companion object {
         private const val PREFS_NAME = "qr_gen_app_prefs"
         private const val KEY_COINS = "user_coins"
-        private const val KEY_DIAMONDS = "user_diamonds" // New: Diamonds currency
-        private const val KEY_IS_PREMIUM = "is_premium_user" // New: Premium status
+        private const val KEY_DIAMONDS = "user_diamonds"
+        private const val KEY_IS_PREMIUM = "is_premium_user"
         private const val KEY_FIRST_LAUNCH = "first_launch"
-        private const val KEY_REDEEMED_CODES = "redeemed_codes" // New: Track redeemed codes
-        private const val KEY_SCAN_HISTORY = "scan_history" // New: Scan history
-
-        // New keys for daily login bonus
+        private const val KEY_REDEEMED_CODES = "redeemed_codes"
+        private const val KEY_SCAN_HISTORY = "scan_history"
         private const val KEY_LAST_LOGIN_DATE = "last_login_date"
         private const val KEY_DAILY_STREAK = "daily_streak"
-
-        // New key for app update warning time
         private const val KEY_FIRST_UPDATE_WARNING_TIME = "first_update_warning_time"
 
-        // Define the default starting coins and diamonds
-        const val DEFAULT_STARTING_COINS = 0 // Changed to 0 as per new logic
-        const val DEFAULT_STARTING_DIAMONDS = 0 // New: Default diamonds
-        const val FREE_USER_HISTORY_LIMIT = 20 // Limit for free users
+        // --- LTV & Ad Analytics Keys ---
+        private const val KEY_BANNER_IMPRESSIONS = "banner_impressions"
+        private const val KEY_INTERSTITIAL_IMPRESSIONS = "interstitial_impressions"
+        private const val KEY_REWARDED_IMPRESSIONS = "rewarded_impressions"
+        private const val KEY_REWARDED_INTERSTITIAL_IMPRESSIONS = "rewarded_interstitial_impressions"
+        private const val KEY_NATIVE_IMPRESSIONS = "native_impressions"
+        private const val KEY_TOTAL_LTV_MICROS = "total_ltv_micros"
+
+        const val DEFAULT_STARTING_COINS = 0
+        const val DEFAULT_STARTING_DIAMONDS = 0
+        const val FREE_USER_HISTORY_LIMIT = 20
     }
 
-    // Get current coin balance
+    // --- YOUR ORIGINAL WORKING FUNCTIONS (UNCHANGED) ---
     fun getCoins(): Int {
         return preferences.getInt(KEY_COINS, DEFAULT_STARTING_COINS)
     }
 
-    // Set coin balance
     fun setCoins(coins: Int) {
         preferences.edit { putInt(KEY_COINS, coins) }
     }
 
-    // Get current diamond balance
     fun getDiamonds(): Int {
         return preferences.getInt(KEY_DIAMONDS, DEFAULT_STARTING_DIAMONDS)
     }
 
-    // Set diamond balance
     fun setDiamonds(diamonds: Int) {
         preferences.edit { putInt(KEY_DIAMONDS, diamonds) }
     }
 
-    // Check if user is premium
     fun isPremium(): Boolean {
         return preferences.getBoolean(KEY_IS_PREMIUM, false)
     }
 
-    // Set premium status
     fun setPremium(isPremium: Boolean) {
         preferences.edit { putBoolean(KEY_IS_PREMIUM, isPremium) }
     }
 
-    // Check if it's the first launch
     fun isFirstLaunch(): Boolean {
         return preferences.getBoolean(KEY_FIRST_LAUNCH, true)
     }
 
-    // Mark that the app has been launched at least once
     fun setFirstLaunch(isFirst: Boolean) {
         preferences.edit().putBoolean(KEY_FIRST_LAUNCH, isFirst).apply()
     }
 
-    // Get redeemed codes set
     fun getRedeemedCodes(): Set<String> {
         return preferences.getStringSet(KEY_REDEEMED_CODES, emptySet()) ?: emptySet()
     }
 
-    // Add a redeemed code
     fun addRedeemedCode(codeHash: String) {
         val currentCodes = getRedeemedCodes().toMutableSet()
         currentCodes.add(codeHash)
         preferences.edit { putStringSet(KEY_REDEEMED_CODES, currentCodes) }
     }
 
-    // Get scan history
     fun getScanHistory(): List<String> {
         val historyJson = preferences.getString(KEY_SCAN_HISTORY, null)
         return historyJson?.let {
-            // Deserialize JSON string to List<String>
-            it.split(";;;") // Simple delimiter for now, consider JSON parsing for complex objects
+            it.split(";;;")
         } ?: emptyList()
     }
 
-    // Add a scan result to history
     fun addScanToHistory(scanResult: String, isPremiumUser: Boolean) {
         val currentHistory = getScanHistory().toMutableList()
-        currentHistory.add(0, scanResult) // Add to the beginning
-
+        currentHistory.add(0, scanResult)
         if (!isPremiumUser && currentHistory.size > FREE_USER_HISTORY_LIMIT) {
-            // Trim history for free users
             currentHistory.subList(FREE_USER_HISTORY_LIMIT, currentHistory.size).clear()
         }
-        // Serialize List<String> to JSON string for storage
         preferences.edit { putString(KEY_SCAN_HISTORY, currentHistory.joinToString(";;;")) }
     }
 
-    // Clear scan history
     fun clearScanHistory() {
         preferences.edit { remove(KEY_SCAN_HISTORY) }
     }
 
-    // New: Get last login date
     fun getLastLoginDate(): String? {
         return preferences.getString(KEY_LAST_LOGIN_DATE, null)
     }
 
-    // New: Set last login date - now accepts nullable String
-    fun setLastLoginDate(date: String?) { // Changed parameter to String?
+    fun setLastLoginDate(date: String?) {
         preferences.edit { putString(KEY_LAST_LOGIN_DATE, date) }
     }
 
-    // New: Get daily streak
     fun getDailyStreak(): Int {
         return preferences.getInt(KEY_DAILY_STREAK, 0)
     }
 
-    // New: Set daily streak
     fun setDailyStreak(streak: Int) {
         preferences.edit { putInt(KEY_DAILY_STREAK, streak) }
     }
 
-    // --- New methods for app update warning time ---
-
-    /**
-     * Retrieves the timestamp (in milliseconds) when the first update warning was shown.
-     * Returns 0L if no warning has been shown yet.
-     */
     fun getFirstUpdateWarningTime(): Long {
         return preferences.getLong(KEY_FIRST_UPDATE_WARNING_TIME, 0L)
     }
 
-    /**
-     * Sets the timestamp (in milliseconds) when the first update warning was shown.
-     */
     fun setFirstUpdateWarningTime(timeMillis: Long) {
         preferences.edit { putLong(KEY_FIRST_UPDATE_WARNING_TIME, timeMillis) }
     }
 
-    /**
-     * Clears the stored timestamp for the first update warning.
-     * This should be called when the app is successfully updated.
-     */
     fun clearFirstUpdateWarningTime() {
         preferences.edit { remove(KEY_FIRST_UPDATE_WARNING_TIME) }
+    }
+
+    // --- NEW LTV & AD ANALYTICS FUNCTIONS (ADDED CAREFULLY) ---
+
+    // Getters for LTV data
+    fun getBannerImpressions(): Int = preferences.getInt(KEY_BANNER_IMPRESSIONS, 0)
+    fun getInterstitialImpressions(): Int = preferences.getInt(KEY_INTERSTITIAL_IMPRESSIONS, 0)
+    fun getRewardedImpressions(): Int = preferences.getInt(KEY_REWARDED_IMPRESSIONS, 0)
+    fun getRewardedInterstitialImpressions(): Int = preferences.getInt(KEY_REWARDED_INTERSTITIAL_IMPRESSIONS, 0)
+    fun getNativeImpressions(): Int = preferences.getInt(KEY_NATIVE_IMPRESSIONS, 0)
+    fun getTotalLtvMicros(): Long = preferences.getLong(KEY_TOTAL_LTV_MICROS, 0L)
+
+    // Setters for LTV data, using your working 'edit' block style
+    fun incrementBannerImpressions() {
+        preferences.edit { putInt(KEY_BANNER_IMPRESSIONS, getBannerImpressions() + 1) }
+    }
+
+    fun incrementInterstitialImpressions() {
+        preferences.edit { putInt(KEY_INTERSTITIAL_IMPRESSIONS, getInterstitialImpressions() + 1) }
+    }
+
+    fun incrementRewardedImpressions() {
+        preferences.edit { putInt(KEY_REWARDED_IMPRESSIONS, getRewardedImpressions() + 1) }
+    }
+
+    fun incrementRewardedInterstitialImpressions() {
+        preferences.edit { putInt(KEY_REWARDED_INTERSTITIAL_IMPRESSIONS, getRewardedInterstitialImpressions() + 1) }
+    }
+
+    fun incrementNativeImpressions() {
+        preferences.edit { putInt(KEY_NATIVE_IMPRESSIONS, getNativeImpressions() + 1) }
+    }
+
+    fun addRevenueMicros(micros: Long) {
+        val currentMicros = getTotalLtvMicros()
+        preferences.edit { putLong(KEY_TOTAL_LTV_MICROS, currentMicros + micros) }
     }
 }

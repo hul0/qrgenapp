@@ -27,7 +27,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Color.Companion.Black
-import androidx.compose.ui.graphics.Color.Companion.Blue
 import androidx.compose.ui.graphics.Color.Companion.LightGray
 import androidx.compose.ui.graphics.Color.Companion.White
 import androidx.compose.ui.graphics.Color.Companion.Yellow
@@ -62,11 +61,11 @@ import com.google.android.play.core.install.model.AppUpdateType
 import com.google.android.play.core.install.model.InstallStatus
 import com.google.android.play.core.install.model.UpdateAvailability
 import com.hulo.qrgenapp.ui.theme.QRGenAppTheme
+import java.util.Locale
 
 // --- IMPORTANT: XML LAYOUT FOR NATIVE AD ---
 // You MUST create a new layout file named `ad_unified.xml` in your `app/src/main/res/layout/` directory.
-// Copy and paste the following content into that file. This is required for the native ad to display correctly.
-
+// This is required for the native ad to display correctly.
 
 // --- Ad Unit IDs and Constants ---
 private const val INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-3940256099942544/1033173712"
@@ -81,28 +80,34 @@ private const val HIGH_PRIORITY_UPDATE = 4
 
 class MainActivity : ComponentActivity() {
 
+    // ViewModels for different app features
     private val qrGenViewModel: QRGenViewModel by viewModels()
     private val qrScanViewModel: QRScanViewModel by viewModels()
     private lateinit var userViewModel: UserViewModel
 
+    // Ad variables
     private var mInterstitialAd: InterstitialAd? = null
     private var mRewardedAd: RewardedAd? = null
     private var mRewardedInterstitialAd: RewardedInterstitialAd? = null
     private var mNativeAd by mutableStateOf<NativeAd?>(null) // Use mutableStateOf for recomposition
 
+    // Ad display logic variables
     private var userActionCount = 0
     private var lastInterstitialTime = 0L
     private val minInterstitialInterval = 40000L // 40 seconds
     private val actionsBeforeInterstitial = 5
 
+    // Ad loading status flags
     private var isInterstitialLoading = false
     private var isRewardedLoading = false
     private var isRewardedInterstitialLoading = false
     private var isNativeAdLoading = false
 
+    // App update manager
     private lateinit var appUpdateManager: AppUpdateManager
     private var updateListener: InstallStateUpdatedListener? = null
 
+    // Activity result launcher for app updates
     private val appUpdateResultLauncher = registerForActivityResult(
         ActivityResultContracts.StartIntentSenderForResult()
     ) { result ->
@@ -118,9 +123,11 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Initialize UserPreferences and UserViewModel
         val userPreferences = UserPreferences(applicationContext)
         userViewModel = UserViewModel(userPreferences)
 
+        // Initialize App Update Manager
         appUpdateManager = AppUpdateManagerFactory.create(applicationContext)
         updateListener = InstallStateUpdatedListener { state ->
             if (state.installStatus() == InstallStatus.DOWNLOADED) {
@@ -133,6 +140,7 @@ class MainActivity : ComponentActivity() {
         appUpdateManager.registerListener(updateListener!!)
         checkForAppUpdates()
 
+        // Initialize Mobile Ads SDK
         MobileAds.initialize(this) {
             Log.d(AD_LOG_TAG, "Mobile Ads SDK Initialized.")
             loadInterstitialAd()
@@ -141,13 +149,14 @@ class MainActivity : ComponentActivity() {
             loadNativeAd()
         }
 
+        // Set the content of the activity using Jetpack Compose
         setContent {
             val userUiState by userViewModel.uiState.collectAsState()
 
             QRGenAppTheme(darkTheme = false) {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
-                    color = Color(0xFF6200EE)
+                    color = Color(0xFF6200EE) // A base color for the app background
                 ) {
                     MainAppScreen(
                         qrGenViewModel = qrGenViewModel,
@@ -171,7 +180,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // --- App Update Logic (Unchanged) ---
+    // --- App Update Logic ---
     private fun checkForAppUpdates() {
         val appUpdateInfoTask = appUpdateManager.appUpdateInfo
         appUpdateInfoTask.addOnSuccessListener { appUpdateInfo ->
@@ -208,6 +217,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        // Check for updates on resume
         appUpdateManager.appUpdateInfo.addOnSuccessListener { appUpdateInfo ->
             if (appUpdateInfo.updateAvailability() == UpdateAvailability.DEVELOPER_TRIGGERED_UPDATE_IN_PROGRESS) {
                 startUpdateFlow(appUpdateInfo, AppUpdateType.IMMEDIATE)
@@ -218,12 +228,13 @@ class MainActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        // Clean up resources
         updateListener?.let { appUpdateManager.unregisterListener(it) }
         mNativeAd?.destroy()
         super.onDestroy()
     }
 
-    // --- Ad Loading and Showing Logic (Largely Unchanged) ---
+    // --- Ad Loading and Showing Logic (MODIFIED FOR LTV) ---
     private fun loadInterstitialAd() {
         if (isInterstitialLoading || mInterstitialAd != null) return
         isInterstitialLoading = true
@@ -236,12 +247,16 @@ class MainActivity : ComponentActivity() {
             override fun onAdLoaded(interstitialAd: InterstitialAd) {
                 mInterstitialAd = interstitialAd
                 isInterstitialLoading = false
+                // NEW: Set paid event listener for LTV
+                mInterstitialAd?.onPaidEventListener = OnPaidEventListener { adValue ->
+                    Log.d(AD_LOG_TAG, "Interstitial ad paid: ${adValue.valueMicros} ${adValue.currencyCode}")
+                    userViewModel.trackInterstitialImpression()
+                }
                 setInterstitialAdCallbacks()
             }
         })
     }
 
-    // ... Other ad loading functions (rewarded, etc.) are unchanged ...
     private fun setInterstitialAdCallbacks() {
         mInterstitialAd?.fullScreenContentCallback = object : FullScreenContentCallback() {
             override fun onAdDismissedFullScreenContent() {
@@ -255,6 +270,12 @@ class MainActivity : ComponentActivity() {
                 loadInterstitialAd()
             }
             override fun onAdShowedFullScreenContent() {}
+            // NEW: Track impression for LTV
+            override fun onAdImpression() {
+                super.onAdImpression()
+                Log.d(AD_LOG_TAG, "Interstitial ad impression recorded.")
+                userViewModel.trackInterstitialImpression()
+            }
         }
     }
 
@@ -275,13 +296,15 @@ class MainActivity : ComponentActivity() {
         isRewardedLoading = true
         val adRequest = AdRequest.Builder().build()
         RewardedAd.load(this, REWARDED_AD_UNIT_ID, adRequest, object : RewardedAdLoadCallback() {
-            override fun onAdFailedToLoad(adError: LoadAdError) {
-                mRewardedAd = null
-                isRewardedLoading = false
-            }
+            override fun onAdFailedToLoad(adError: LoadAdError) { mRewardedAd = null; isRewardedLoading = false }
             override fun onAdLoaded(rewardedAd: RewardedAd) {
                 mRewardedAd = rewardedAd
                 isRewardedLoading = false
+                // NEW: Set paid event listener for LTV
+                mRewardedAd?.onPaidEventListener = OnPaidEventListener { adValue ->
+                    Log.d(AD_LOG_TAG, "Rewarded ad paid: ${adValue.valueMicros} ${adValue.currencyCode}")
+                    userViewModel.trackRewardedImpression()
+                }
                 setRewardedAdCallbacks()
             }
         })
@@ -289,15 +312,15 @@ class MainActivity : ComponentActivity() {
 
     private fun setRewardedAdCallbacks() {
         mRewardedAd?.fullScreenContentCallback = object : FullScreenContentCallback() {
-            override fun onAdDismissedFullScreenContent() {
-                mRewardedAd = null
-                loadRewardedAd()
-            }
-            override fun onAdFailedToShowFullScreenContent(adError: AdError) {
-                mRewardedAd = null
-                loadRewardedAd()
-            }
+            override fun onAdDismissedFullScreenContent() { mRewardedAd = null; loadRewardedAd() }
+            override fun onAdFailedToShowFullScreenContent(adError: AdError) { mRewardedAd = null; loadRewardedAd() }
             override fun onAdShowedFullScreenContent() {}
+            // NEW: Track impression for LTV
+            override fun onAdImpression() {
+                super.onAdImpression()
+                Log.d(AD_LOG_TAG, "Rewarded ad impression recorded.")
+                userViewModel.trackRewardedImpression()
+            }
         }
     }
 
@@ -319,13 +342,15 @@ class MainActivity : ComponentActivity() {
         isRewardedInterstitialLoading = true
         val adRequest = AdRequest.Builder().build()
         RewardedInterstitialAd.load(this, REWARDED_INTERSTITIAL_AD_UNIT_ID, adRequest, object : RewardedInterstitialAdLoadCallback() {
-            override fun onAdFailedToLoad(adError: LoadAdError) {
-                mRewardedInterstitialAd = null
-                isRewardedInterstitialLoading = false
-            }
+            override fun onAdFailedToLoad(adError: LoadAdError) { mRewardedInterstitialAd = null; isRewardedInterstitialLoading = false }
             override fun onAdLoaded(ad: RewardedInterstitialAd) {
                 mRewardedInterstitialAd = ad
                 isRewardedInterstitialLoading = false
+                // NEW: Set paid event listener for LTV
+                mRewardedInterstitialAd?.onPaidEventListener = OnPaidEventListener { adValue ->
+                    Log.d(AD_LOG_TAG, "Rewarded Interstitial ad paid: ${adValue.valueMicros} ${adValue.currencyCode}")
+                    userViewModel.trackRewardedInterstitialImpression()
+                }
                 setRewardedInterstitialAdCallbacks()
             }
         })
@@ -333,15 +358,15 @@ class MainActivity : ComponentActivity() {
 
     private fun setRewardedInterstitialAdCallbacks() {
         mRewardedInterstitialAd?.fullScreenContentCallback = object : FullScreenContentCallback() {
-            override fun onAdDismissedFullScreenContent() {
-                mRewardedInterstitialAd = null
-                loadRewardedInterstitialAd()
-            }
-            override fun onAdFailedToShowFullScreenContent(adError: AdError) {
-                mRewardedInterstitialAd = null
-                loadRewardedInterstitialAd()
-            }
+            override fun onAdDismissedFullScreenContent() { mRewardedInterstitialAd = null; loadRewardedInterstitialAd() }
+            override fun onAdFailedToShowFullScreenContent(adError: AdError) { mRewardedInterstitialAd = null; loadRewardedInterstitialAd() }
             override fun onAdShowedFullScreenContent() {}
+            // NEW: Track impression for LTV
+            override fun onAdImpression() {
+                super.onAdImpression()
+                Log.d(AD_LOG_TAG, "Rewarded Interstitial ad impression recorded.")
+                userViewModel.trackRewardedInterstitialImpression()
+            }
         }
     }
 
@@ -363,17 +388,23 @@ class MainActivity : ComponentActivity() {
         isNativeAdLoading = true
         val adLoader = AdLoader.Builder(this, NATIVE_AD_UNIT_ID)
             .forNativeAd { nativeAd ->
-                // If there's an old ad, destroy it.
                 mNativeAd?.destroy()
                 mNativeAd = nativeAd
                 isNativeAdLoading = false
+                // NEW: Set paid event listener for LTV
+                nativeAd.setOnPaidEventListener { adValue ->
+                    Log.d(AD_LOG_TAG, "Native ad paid: ${adValue.valueMicros} ${adValue.currencyCode}")
+                    userViewModel.trackNativeImpression()
+                }
                 Log.d(AD_LOG_TAG, "Native ad loaded successfully.")
             }
             .withAdListener(object : AdListener() {
-                override fun onAdFailedToLoad(adError: LoadAdError) {
-                    mNativeAd = null
-                    isNativeAdLoading = false
-                    Log.e(AD_LOG_TAG, "Native ad failed to load: ${adError.message}")
+                override fun onAdFailedToLoad(adError: LoadAdError) { mNativeAd = null; isNativeAdLoading = false; Log.e(AD_LOG_TAG, "Native ad failed to load: ${adError.message}") }
+                // NEW: Track impression for LTV
+                override fun onAdImpression() {
+                    super.onAdImpression()
+                    Log.d(AD_LOG_TAG, "Native ad impression recorded.")
+                    userViewModel.trackNativeImpression()
                 }
             })
             .withNativeAdOptions(NativeAdOptions.Builder().build())
@@ -382,7 +413,7 @@ class MainActivity : ComponentActivity() {
     }
 }
 
-// --- Composable Screens (Unchanged) ---
+// --- Composable Screens ---
 sealed class Screen(val route: String, val title: String, val icon: ImageVector) {
     object Home : Screen("home", "Home", Icons.Default.Home)
     object Generate : Screen("generate", "Generate", Icons.Default.Create)
@@ -446,29 +477,36 @@ fun MainAppScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Purple700),
                 actions = {
+                    // --- NEW: LTV Display ---
+                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 8.dp)) {
+                        Icon(Icons.Default.TrendingUp, "LTV", tint = White, modifier = Modifier.size(20.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            text = "₹${String.format(Locale.US, "%.5f", userUiState.totalLtvInr)}",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = White
+                        )
+                    }
+                    // --- Existing Coin/Diamond Display ---
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 8.dp)) {
                         Icon(Icons.Default.MonetizationOn, "Coin Balance", tint = Yellow, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(4.dp))
                         Text(userUiState.coins.toString(), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = White)
                     }
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 8.dp)) {
-                        Icon(Icons.Default.Diamond, "Diamond Balance", tint = Color(
-                            37,
-                            243,
-                            225,
-                            255
-                        ), modifier = Modifier.size(20.dp))
+                        Icon(Icons.Default.Diamond, "Diamond Balance", tint = Color(37, 243, 225, 255), modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(4.dp))
                         Text(userUiState.diamonds.toString(), style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold, color = White)
                     }
-
                 }
             )
         },
         bottomBar = {
             Column {
                 if (!isPremiumUser) {
-                    BannerAd(adUnitId = BANNER_AD_UNIT_ID)
+                    // MODIFIED: Pass ViewModel to BannerAd
+                    BannerAd(adUnitId = BANNER_AD_UNIT_ID, userViewModel = userViewModel)
                 }
                 NavigationBar(containerColor = Purple700) {
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -503,7 +541,7 @@ fun MainAppScreen(
             startDestination = Screen.Home.route,
             modifier = Modifier.padding(innerPadding).fillMaxSize()
         ) {
-            // --- NavHost composable routes (Unchanged) ---
+            // --- NavHost composable routes ---
             composable(Screen.Home.route) {
                 HomeScreen(
                     coinBalance = userUiState.coins,
@@ -549,7 +587,7 @@ fun MainAppScreen(
                     onNavigateToScan = { navController.navigate(Screen.Scan.route) },
                     onNavigateToPremium = { navController.navigate(Screen.Premium.route) },
                     nativeAd = nativeAd,
-                    showNativeAd = !isPremiumUser ,
+                    showNativeAd = !isPremiumUser,
                     isPremiumUser = isPremiumUser,
                     dailyBonusAvailable = userUiState.dailyBonusAvailable,
                     dailyBonusAmount = userUiState.dailyBonusAmount,
@@ -638,15 +676,27 @@ fun MainAppScreen(
     }
 }
 
+// --- CORRECTED BannerAd Composable ---
 @Composable
-fun BannerAd(adUnitId: String, modifier: Modifier = Modifier) {
+fun BannerAd(adUnitId: String, userViewModel: UserViewModel, modifier: Modifier = Modifier) {
     AndroidView(
         modifier = modifier.fillMaxWidth(),
         factory = { context ->
             AdView(context).apply {
                 setAdSize(AdSize.getCurrentOrientationAnchoredAdaptiveBannerAdSize(context, AdSize.FULL_WIDTH))
                 setAdUnitId(adUnitId)
+                // NEW: Set paid event listener for LTV
+                onPaidEventListener = OnPaidEventListener { adValue ->
+                    Log.d(AD_LOG_TAG, "Banner ad paid: ${adValue.valueMicros} ${adValue.currencyCode}")
+                    userViewModel.trackBannerImpression()
+                }
                 adListener = object : AdListener() {
+                    // NEW: Track impression for LTV
+                    override fun onAdImpression() {
+                        super.onAdImpression()
+                        Log.d(AD_LOG_TAG, "Banner ad impression recorded.")
+                        userViewModel.trackBannerImpression()
+                    }
                     override fun onAdFailedToLoad(adError: LoadAdError) {
                         Log.e(AD_LOG_TAG, "Banner ad failed to load: ${adError.message}")
                     }
@@ -657,7 +707,7 @@ fun BannerAd(adUnitId: String, modifier: Modifier = Modifier) {
     )
 }
 
-// --- REVISED AND CORRECTED NATIVE AD COMPOSABLE ---
+// --- Native Ad Composable ---
 @Composable
 fun NativeAdViewComposable(
     nativeAd: NativeAd?,
@@ -667,16 +717,14 @@ fun NativeAdViewComposable(
     val adCardColor = Color(0x41FFFFFF)
 
     if (!showAd) {
-        // Don't show anything if the flag is false
         return
     }
 
-    // Show a styled placeholder while the ad is loading or if it fails
     if (nativeAd == null) {
         Card(
             modifier = modifier
                 .fillMaxWidth()
-                .height(350.dp) // Approximate height of the full ad card
+                .height(350.dp)
                 .padding(horizontal = 8.dp, vertical = 4.dp),
             shape = RoundedCornerShape(8.dp),
             colors = CardDefaults.cardColors(containerColor = adCardColor),
@@ -696,7 +744,6 @@ fun NativeAdViewComposable(
         return
     }
 
-    // Display the actual ad once it's loaded
     Card(
         modifier = modifier
             .fillMaxWidth()
@@ -709,13 +756,10 @@ fun NativeAdViewComposable(
             AndroidView(
                 modifier = Modifier.fillMaxWidth(),
                 factory = { context ->
-                    // Inflate the XML layout for the ad.
-                    // THIS REQUIRES 'res/layout/ad_unified.xml' TO EXIST.
                     LayoutInflater.from(context)
                         .inflate(R.layout.ad_unified, null) as NativeAdView
                 },
                 update = { adView ->
-                    // Find all the views from the inflated layout.
                     val headlineView = adView.findViewById<TextView>(R.id.ad_headline)
                     val bodyView = adView.findViewById<TextView>(R.id.ad_body)
                     val callToActionView = adView.findViewById<AndroidButton>(R.id.ad_call_to_action)
@@ -723,10 +767,7 @@ fun NativeAdViewComposable(
                     val advertiserView = adView.findViewById<TextView>(R.id.ad_advertiser)
                     val mediaView = adView.findViewById<MediaView>(R.id.ad_media)
 
-                    // Associate the NativeAd object with the NativeAdView.
                     adView.setNativeAd(nativeAd)
-
-                    // Register the views with the NativeAd object for click/impression tracking.
                     adView.mediaView = mediaView
                     adView.headlineView = headlineView
                     adView.bodyView = bodyView
@@ -734,7 +775,6 @@ fun NativeAdViewComposable(
                     adView.iconView = iconView
                     adView.advertiserView = advertiserView
 
-                    // Populate the views with ad assets.
                     headlineView.text = nativeAd.headline
                     mediaView.mediaContent = nativeAd.mediaContent
                     bodyView.text = nativeAd.body
@@ -755,7 +795,6 @@ fun NativeAdViewComposable(
                     }
                 }
             )
-            // "Sponsored" label, as in your original design
             Text(
                 text = "Sponsored",
                 style = MaterialTheme.typography.labelMedium,
@@ -770,7 +809,10 @@ fun NativeAdViewComposable(
     }
 }
 
-// --- Other Composables (Unchanged) ---
+// A simple extension function for showing toasts
+
+
+// --- Other Composables ---
 @Composable
 fun RewardedAdButton(
     onShowRewardedAd: (onRewardEarned: (Int) -> Unit) -> Unit,
