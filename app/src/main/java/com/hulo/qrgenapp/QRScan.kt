@@ -451,7 +451,7 @@ fun ScanResultDialog(
                 .fillMaxWidth(0.9f)
                 .animateContentSize(),
             shape = RoundedCornerShape(24.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            colors = CardDefaults.cardColors(containerColor = Color(0, 172, 63, 255))
         ) {
             Column(modifier = Modifier.padding(24.dp)) {
                 // Header

@@ -18,6 +18,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -76,9 +77,7 @@ fun GainCoinsScreen(
 
         // --- NATIVE AD INTEGRATION ---
         // The ad is now part of the list of earning methods.
-        if (showNativeAd) {
-            add(GainCoinsListItem.Ad(nativeAd))
-        }
+
 
         add(GainCoinsListItem.EarningMethod(
             title = "Scan QR Codes",
@@ -90,6 +89,9 @@ fun GainCoinsScreen(
 
         if (!isPremiumUser) {
             add(GainCoinsListItem.PremiumPromo)
+        }
+        if (showNativeAd) {
+            add(GainCoinsListItem.Ad(nativeAd))
         }
     }
 
@@ -196,7 +198,7 @@ private fun DailyBonusCard(amount: Int, streak: Int, onClaim: () -> Unit) {
                     color = Color.White.copy(alpha = 0.8f)
                 )
             }
-            Box(modifier = Modifier.matchParentSize().shimmerBackground(RoundedCornerShape(24.dp)))
+          //  Box(modifier = Modifier.matchParentSize().shimmerBackground(RoundedCornerShape(24.dp)).alpha(0f))
         }
     }
 }
