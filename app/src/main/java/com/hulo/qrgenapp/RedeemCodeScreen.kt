@@ -1,189 +1,234 @@
 package com.hulo.qrgenapp
 
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CardGiftcard
 import androidx.compose.material.icons.filled.Diamond
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.material.icons.filled.MonetizationOn
+import androidx.compose.material.icons.filled.Storefront
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.google.android.gms.ads.nativead.NativeAd
 
 @Composable
 fun RedeemCodeScreen(
     userViewModel: UserViewModel,
     showToast: (String) -> Unit,
-    nativeAd: NativeAd?, // New: Native Ad
-    showAd: Boolean // New: Control native ad visibility (renamed from showNativeAd for consistency)
+    nativeAd: NativeAd?,
+    showAd: Boolean
 ) {
+    // This logic remains untouched.
     val uiState by userViewModel.uiState.collectAsState()
     var redeemCodeInput by remember { mutableStateOf(TextFieldValue("")) }
     var redeemMessage by remember { mutableStateOf("") }
 
-    Column(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp), // Overall horizontal padding
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Top
-    ) {
-        // Native Ad Section (moved to top for consistent placement with other screens)
-        if (showAd) {
-            Spacer(modifier = Modifier.height(16.dp)) // Spacer before ad
-            NativeAdViewComposable(
-                nativeAd = nativeAd,
-                showAd = showAd,
-                modifier = Modifier.fillMaxWidth() // Ensure it fills width
-            )
-            Spacer(modifier = Modifier.height(16.dp)) // Spacer after ad
-        } else {
-            Spacer(modifier = Modifier.height(32.dp)) // Larger top spacer if no ad
-        }
-
-
-        Icon(
-            imageVector = Icons.Default.Diamond,
-            contentDescription = "Redeem Diamonds",
-            modifier = Modifier.size(96.dp), // Larger icon
-            tint = MaterialTheme.colorScheme.tertiary
-        )
-        Spacer(modifier = Modifier.height(16.dp)) // Increased spacer
-        Text(
-            text = "Redeem Your Code",
-            style = MaterialTheme.typography.headlineMedium, // Larger headline
-            fontWeight = FontWeight.ExtraBold,
-            color = MaterialTheme.colorScheme.onBackground,
-            textAlign = TextAlign.Center
-        )
-        Spacer(modifier = Modifier.height(8.dp)) // Increased spacer
-        Text(
-            text = "Enter a special redeem code to earn Diamonds!",
-            style = MaterialTheme.typography.bodyLarge, // Larger text
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(horizontal = 16.dp) // Increased horizontal padding
-        )
-        Spacer(modifier = Modifier.height(32.dp)) // Increased spacer
-
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp), // Increased horizontal padding
-            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp), // Increased elevation
-            shape = RoundedCornerShape(20.dp), // More rounded
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.95f)) // Less transparent, more solid
-        ) {
-            Column(
-                modifier = Modifier.padding(20.dp), // Increased padding
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(16.dp) // Increased spacing
-            ) {
-                OutlinedTextField(
-                    value = redeemCodeInput,
-                    onValueChange = { redeemCodeInput = it },
-                    label = { Text("Enter Redeem Code", style = MaterialTheme.typography.bodyLarge) }, // Larger label
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    shape = RoundedCornerShape(12.dp), // More rounded
-                    leadingIcon = { Icon(Icons.Filled.CardGiftcard, contentDescription = "Redeem Code", modifier = Modifier.size(24.dp)) } // Larger icon
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(Color(0xFF2E3192), Color(0xFF1B1464))
                 )
-
-                Button(
-                    onClick = {
-                        if (redeemCodeInput.text.isNotBlank()) {
-                            redeemMessage = userViewModel.redeemCode(redeemCodeInput.text)
-                            showToast(redeemMessage)
-                            redeemCodeInput = TextFieldValue("") // Clear input after attempt
-                        } else {
-                            showToast("Please enter a redeem code.")
-                        }
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(56.dp), // Larger button height
-                    shape = RoundedCornerShape(16.dp), // More rounded
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary), // Solid primary color
-                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp) // Increased elevation
-                ) {
-                    Text("REDEEM CODE", style = MaterialTheme.typography.titleLarge) // Larger text
-                }
-
-                if (redeemMessage.isNotBlank()) {
-                    Text(
-                        text = redeemMessage,
-                        style = MaterialTheme.typography.bodyLarge, // Larger text
-                        color = if (redeemMessage.contains("Successfully")) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.error,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(32.dp)) // Increased spacer
-
-        // Current Diamond Balance Section
-        Card(
+            )
+    ) {
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 8.dp), // Increased horizontal padding
-            shape = RoundedCornerShape(20.dp), // More rounded
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.95f)), // Less transparent, more solid
-            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp) // Increased elevation
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .systemBarsPadding()
+                .padding(16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Row(
+            // Header
+            Icon(
+                imageVector = Icons.Default.CardGiftcard,
+                contentDescription = "Redeem Code",
+                modifier = Modifier.size(64.dp),
+                tint = Color(0xFF81D4FA)
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Text(
+                text = "Redeem Code",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+            Text(
+                text = "Enter a special code to earn Diamonds!",
+                style = MaterialTheme.typography.bodyLarge,
+                color = Color.White.copy(alpha = 0.8f),
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Redeem Card
+            RedeemCard(
+                redeemCodeInput = redeemCodeInput,
+                onValueChange = { redeemCodeInput = it },
+                onRedeemClick = {
+                    // This logic call is preserved.
+                    if (redeemCodeInput.text.isNotBlank()) {
+                        redeemMessage = userViewModel.redeemCode(redeemCodeInput.text)
+                        showToast(redeemMessage)
+                        redeemCodeInput = TextFieldValue("")
+                    } else {
+                        showToast("Please enter a redeem code.")
+                    }
+                }
+            )
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Store Section (New UI Feature)
+            StoreSection()
+        }
+    }
+}
+
+@Composable
+private fun RedeemCard(
+    redeemCodeInput: TextFieldValue,
+    onValueChange: (TextFieldValue) -> Unit,
+    onRedeemClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.1f))
+    ) {
+        Column(
+            modifier = Modifier.padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            OutlinedTextField(
+                value = redeemCodeInput,
+                onValueChange = onValueChange,
+                label = { Text("Enter Redeem Code", color = Color.White.copy(alpha = 0.7f)) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                shape = RoundedCornerShape(16.dp),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedTextColor = Color.White,
+                    unfocusedTextColor = Color.White,
+                    cursorColor = Color.White,
+                    focusedBorderColor = Color.White.copy(alpha = 0.8f),
+                    unfocusedBorderColor = Color.White.copy(alpha = 0.4f),
+                    focusedLabelColor = Color.White,
+                    unfocusedLabelColor = Color.White.copy(alpha = 0.7f)
+                )
+            )
+            Button(
+                onClick = onRedeemClick,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(20.dp), // Increased padding
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
+                    .height(56.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5856D6))
             ) {
-                Icon(
-                    imageVector = Icons.Default.Diamond,
-                    contentDescription = "Current Diamond Balance",
-                    modifier = Modifier.size(36.dp), // Larger icon
-                    tint = MaterialTheme.colorScheme.onTertiaryContainer
+                Text("REDEEM", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+            }
+        }
+    }
+}
+
+@Composable
+private fun StoreSection() {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(bottom = 16.dp)
+        ) {
+            Icon(Icons.Default.Storefront, contentDescription = "Store", tint = Color.White)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = "Store",
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(24.dp))
+        ) {
+            // Glassmorphic background for the whole store section
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White.copy(alpha = 0.1f))
+                    .padding(16.dp)
+                    .alpha(0.5f), // Make content semi-transparent to emphasize "Coming Soon"
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                StoreItem(
+                    icon = Icons.Default.Diamond,
+                    title = "1000 Diamonds",
+                    price = "$1.99",
+                    iconColor = Color(0xFF81D4FA)
                 )
-                Spacer(modifier = Modifier.width(8.dp)) // Increased spacer
+                StoreItem(
+                    icon = Icons.Default.MonetizationOn,
+                    title = "5000 Coins",
+                    price = "$0.99",
+                    iconColor = Color(0xFFFFD700)
+                )
+            }
+            // "Coming Soon" overlay
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(Color.Black.copy(alpha = 0.4f)),
+                contentAlignment = Alignment.Center
+            ) {
                 Text(
-                    text = "Your Current Diamonds: ${uiState.diamonds}",
-                    style = MaterialTheme.typography.headlineSmall, // Larger text
+                    "Coming Soon",
+                    style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onTertiaryContainer,
+                    color = Color.White,
                     textAlign = TextAlign.Center
                 )
             }
         }
-        Spacer(modifier = Modifier.height(24.dp)) // Increased bottom spacer
+    }
+}
+
+@Composable
+private fun StoreItem(icon: ImageVector, title: String, price: String, iconColor: Color) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = icon,
+                contentDescription = title,
+                tint = iconColor,
+                modifier = Modifier.size(32.dp)
+            )
+            Spacer(modifier = Modifier.width(16.dp))
+            Text(title, color = Color.White, style = MaterialTheme.typography.titleMedium)
+        }
+        Button(onClick = { /* Disabled */ }, enabled = false, shape = RoundedCornerShape(12.dp)) {
+            Text(price)
+        }
     }
 }
