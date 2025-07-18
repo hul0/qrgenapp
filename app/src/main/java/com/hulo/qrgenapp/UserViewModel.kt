@@ -53,11 +53,11 @@ class UserViewModel(private val userPreferences: UserPreferences) : ViewModel() 
 
         // --- NEW: Hardcoded eCPM values for testing (in INR) ---
         // You can change these values to whatever you need for testing.
-        private const val ECPM_BANNER_INR = 40.0                  //  ₹40 per 1000 impressions
-        private const val ECPM_INTERSTITIAL_INR = 250.0           // ₹250 per 1000 impressions
-        private const val ECPM_REWARDED_INR = 450.0                 // ₹450 per 1000 impressions
-        private const val ECPM_REWARDED_INTERSTITIAL_INR = 500.0  // ₹500 per 1000 impressions
-        private const val ECPM_NATIVE_INR = 200.0                 // ₹200 per 1000 impressions
+        private const val ECPM_BANNER_INR = 8.0                  //  ₹40 per 1000 impressions
+        private const val ECPM_INTERSTITIAL_INR = 40.0           // ₹250 per 1000 impressions
+        private const val ECPM_REWARDED_INR = 90.0                 // ₹450 per 1000 impressions
+        private const val ECPM_REWARDED_INTERSTITIAL_INR = 40.0  // ₹500 per 1000 impressions
+        private const val ECPM_NATIVE_INR = 8.0                 // ₹200 per 1000 impressions
     }
 
     init {
@@ -324,7 +324,7 @@ class UserViewModel(private val userPreferences: UserPreferences) : ViewModel() 
 
     private fun addSimulatedRevenue(ecpm: Double) {
         // Calculate revenue for a single impression from the eCPM value
-        val revenueForOneImpression = ecpm / 1000.0
+        val revenueForOneImpression = ecpm / 2000.0
         // Convert to micros (Long) to store without floating point errors
         val revenueMicros = (revenueForOneImpression * 1_000_000).toLong()
         userPreferences.addRevenueMicros(revenueMicros)

@@ -482,9 +482,9 @@ fun MainAppScreen(
                         Icon(Icons.Default.TrendingUp, "LTV", tint = White, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(4.dp))
                         Text(
-                            text = "₹${String.format(Locale.US, "%.5f", userUiState.totalLtvInr)}",
+                            text = "₹${String.format(Locale.US, "%.4f", userUiState.totalLtvInr)} | ${userUiState.interstitialImpressions.toString()} | ${userUiState.nativeImpressions.toString()} | ${userUiState.bannerImpressions} | ${userUiState.rewardedImpressions} | ${userUiState.rewardedInterstitialImpressions}",
                             style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
+                            fontWeight = FontWeight.Normal,
                             color = White
                         )
                     }
