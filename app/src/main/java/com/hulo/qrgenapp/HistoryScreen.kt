@@ -1,223 +1,274 @@
 package com.hulo.qrgenapp
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ContentCopy // Import for copy icon
-import androidx.compose.material.icons.filled.History
-import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Star
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalClipboardManager // Import for clipboard
-import androidx.compose.ui.platform.LocalContext // Import for toast
-import androidx.compose.ui.text.AnnotatedString // Import for clipboard
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.google.android.gms.ads.nativead.NativeAd
 
-// Ad Unit ID for banner ad on this screen
-private const val BANNER_AD_UNIT_ID_HISTORY_SCREEN = "ca-app-pub-3940256099942544/6300978111" // Google's Test Banner Ad Unit ID
+// This is a UI-level helper to organize the list. It does not contain business logic.
+private sealed interface HistoryListItem {
+    data class Header(val title: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) : HistoryListItem
+    data class PremiumPrompt(val onNavigate: () -> Unit) : HistoryListItem
+    data class HistoryItem(val text: String) : HistoryListItem
+    data class AdItem(val nativeAd: NativeAd?) : HistoryListItem
+    object EmptyState : HistoryListItem
+    data class ClearButton(val onClear: () -> Unit) : HistoryListItem
+}
 
 @Composable
 fun HistoryScreen(
     userViewModel: UserViewModel,
     onNavigateToPremium: () -> Unit,
     showToast: (String) -> Unit,
-    onShowInterstitialAd: () -> Unit, // New: Callback for showing interstitial ads
-    nativeAd: NativeAd?, // New: Native Ad
-    showAd: Boolean // New: Control native ad visibility (renamed from showNativeAd for consistency)
+    onShowInterstitialAd: () -> Unit,
+    nativeAd: NativeAd?,
+    showAd: Boolean
 ) {
+    // This logic remains untouched.
     val uiState by userViewModel.uiState.collectAsState()
-    val scanHistory = uiState.scanHistory
-    val isPremium = uiState.isPremium
-    val clipboardManager = LocalClipboardManager.current // Get clipboard manager
-    val context = LocalContext.current // Get context for toast
+    val clipboardManager = LocalClipboardManager.current
 
-    Column(
+    // This is a UI-level list construction. All logic calls are preserved from your original file.
+    val listItems = buildList<HistoryListItem> {
+        add(HistoryListItem.Header("Scan History", Icons.Default.History))
+        if (!uiState.isPremium) {
+            add(HistoryListItem.PremiumPrompt(onNavigateToPremium))
+        }
+        if (uiState.scanHistory.isEmpty()) {
+            add(HistoryListItem.EmptyState)
+        } else {
+            val historyWithAd = uiState.scanHistory.map<String, HistoryListItem> { HistoryListItem.HistoryItem(it) }.toMutableList()
+            // The ad is inserted as a UI element in the list.
+            if (showAd) {
+                val adPosition = 4.coerceAtMost(historyWithAd.size)
+                historyWithAd.add(adPosition, HistoryListItem.AdItem(nativeAd))
+            }
+            addAll(historyWithAd)
+            add(HistoryListItem.ClearButton {
+                userViewModel.clearScanHistory()
+                showToast("History cleared!")
+            })
+        }
+    }
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background) // Ensure background matches theme
-            .verticalScroll(rememberScrollState()) // Ensure the entire screen is scrollable
-            .padding(horizontal = 16.dp), // Apply overall horizontal padding
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Top
-    ) {
-        // Native Ad Section (moved to top for consistent placement with other screens)
-        if (showAd) {
-            Spacer(modifier = Modifier.height(16.dp)) // Spacer before ad
-            NativeAdViewComposable(
-                nativeAd = nativeAd,
-                showAd = showAd,
-                modifier = Modifier.fillMaxWidth() // Ensure it fills width
+            .background(
+                brush = Brush.verticalGradient(
+                    colors = listOf(Color(0xFF2E3192), Color(0xFF1B1464))
+                )
             )
-            Spacer(modifier = Modifier.height(16.dp)) // Spacer after ad
-        } else {
-            Spacer(modifier = Modifier.height(32.dp)) // Larger top spacer if no ad
+    ) {
+        // The entire screen is now a single LazyColumn for seamless scrolling.
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .systemBarsPadding(),
+            contentPadding = PaddingValues(vertical = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            items(
+                items = listItems,
+                key = { item ->
+                    when (item) {
+                        is HistoryListItem.HistoryItem -> item.text + System.nanoTime()
+                        else -> item.javaClass.simpleName
+                    }
+                }
+            ) { item ->
+                // Render the correct UI component based on its type in the list.
+                when (item) {
+                    is HistoryListItem.Header -> ScreenHeader(item.title, item.icon)
+                    is HistoryListItem.PremiumPrompt -> PremiumPromoCard(item.onNavigate, Modifier.padding(16.dp))
+                    is HistoryListItem.HistoryItem -> HistoryItemCard(
+                        scanResult = item.text,
+                        onCopyClick = {
+                            // Logic is preserved.
+                            clipboardManager.setText(AnnotatedString(item.text))
+                            showToast("Copied to clipboard!")
+                            if (!uiState.isPremium) {
+                                onShowInterstitialAd()
+                            }
+                        },
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
+                    is HistoryListItem.AdItem -> NativeAdViewComposable(
+                        nativeAd = item.nativeAd,
+                        showAd = true,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                    )
+                    is HistoryListItem.EmptyState -> EmptyHistoryView(Modifier.fillParentMaxHeight(0.7f))
+                    is HistoryListItem.ClearButton -> ClearHistoryButton(item.onClear)
+                }
+                // Add spacing between items.
+                Spacer(modifier = Modifier.height(12.dp))
+            }
         }
+    }
+}
 
+// --- UI-Only Components Below ---
+
+@Composable
+private fun ScreenHeader(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.padding(bottom = 12.dp)
+    ) {
         Icon(
-            imageVector = Icons.Default.History,
-            contentDescription = "Scan History",
-            modifier = Modifier.size(96.dp), // Larger icon
-            tint = MaterialTheme.colorScheme.primary
+            imageVector = icon,
+            contentDescription = title,
+            modifier = Modifier.size(50.dp),
+            tint = Color.White
         )
-        Spacer(modifier = Modifier.height(16.dp)) // Increased spacer
+        Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Scan History",
-            style = MaterialTheme.typography.headlineMedium, // Larger headline
-            fontWeight = FontWeight.ExtraBold,
-            color = MaterialTheme.colorScheme.onBackground,
-            textAlign = TextAlign.Center
+            title,
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color = Color.White
+        )
+    }
+}
+
+@Composable
+private fun HistoryItemCard(scanResult: String, onCopyClick: () -> Unit, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.1f))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = scanResult,
+                style = MaterialTheme.typography.bodyLarge,
+                color = Color.White,
+                modifier = Modifier.weight(1f),
+                maxLines = 3
+            )
+            IconButton(onClick = onCopyClick) {
+                Icon(
+                    imageVector = Icons.Default.ContentCopy,
+                    contentDescription = "Copy to Clipboard",
+                    tint = Color.White.copy(alpha = 0.8f)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PremiumPromoCard(onNavigateToPremium: () -> Unit, modifier: Modifier = Modifier) {
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(20.dp))
+            .clickable(onClick = onNavigateToPremium),
+        shape = RoundedCornerShape(20.dp),
+        elevation = CardDefaults.cardElevation(8.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(
+                    brush = Brush.linearGradient(
+                        colors = listOf(Color(0xFF8E2DE2), Color(0xFF4A00E0))
+                    )
+                )
+                .padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.WorkspacePremium,
+                contentDescription = "Premium",
+                tint = Color.White,
+                modifier = Modifier.size(40.dp)
+            )
+            Text(
+                "Unlock Unlimited History",
+                fontWeight = FontWeight.Bold,
+                fontSize = 20.sp,
+                color = Color.White
+            )
+            Text(
+                "Go Premium to save all your scans, remove ads, and more!",
+                color = Color.White.copy(alpha = 0.9f),
+                textAlign = TextAlign.Center,
+                style = MaterialTheme.typography.bodyMedium
+            )
+        }
+    }
+}
+
+@Composable
+private fun EmptyHistoryView(modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier.padding(32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = Icons.Default.SearchOff,
+            contentDescription = "No History",
+            modifier = Modifier.size(80.dp),
+            tint = Color.White.copy(alpha = 0.5f)
         )
         Spacer(modifier = Modifier.height(16.dp))
+        Text(
+            "No Scans Yet",
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.Bold,
+            color = Color.White
+        )
+        Text(
+            "Your scanned QR codes will appear here.",
+            style = MaterialTheme.typography.bodyLarge,
+            color = Color.White.copy(alpha = 0.7f),
+            textAlign = TextAlign.Center
+        )
+    }
+}
 
-        if (!isPremium) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(vertical = 8.dp), // Increased vertical padding for card
-                elevation = CardDefaults.cardElevation(defaultElevation = 4.dp), // Increased elevation
-                shape = RoundedCornerShape(16.dp), // More rounded
-                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.85f)) // Less transparent, more solid
-            ) {
-                Column(
-                    modifier = Modifier.padding(20.dp), // Increased padding inside card
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp) // Increased spacing
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Lock,
-                        contentDescription = "Premium Feature",
-                        modifier = Modifier.size(36.dp), // Larger icon
-                        tint = MaterialTheme.colorScheme.onSecondaryContainer
-                    )
-                    Text(
-                        text = "Unlock Unlimited History with Premium!",
-                        style = MaterialTheme.typography.titleLarge, // Larger title
-                        fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.onSecondaryContainer,
-                        textAlign = TextAlign.Center
-                    )
-                    Text(
-                        text = "Free users can see up to ${UserPreferences.FREE_USER_HISTORY_LIMIT} recent scans. Go Premium for unlimited history and more!",
-                        style = MaterialTheme.typography.bodyLarge, // Larger body text
-                        color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.9f),
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(8.dp)) // Increased spacer
-                    Button(
-                        onClick = onNavigateToPremium,
-                        shape = RoundedCornerShape(12.dp), // More rounded button
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary), // Solid primary color
-                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp) // Increased padding
-                    ) {
-                        Icon(Icons.Default.Star, contentDescription = "Premium", modifier = Modifier.size(20.dp)) // Larger icon
-                        Spacer(Modifier.width(8.dp)) // Increased spacing
-                        Text("Go Premium!", style = MaterialTheme.typography.titleMedium) // Larger text style
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(24.dp)) // Increased spacer
-        }
-
-        if (scanHistory.isEmpty()) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(1f), // Take available space
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Info,
-                    contentDescription = "No History",
-                    modifier = Modifier.size(80.dp), // Larger icon
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f) // Less transparent
-                )
-                Spacer(modifier = Modifier.height(16.dp)) // Increased spacer
-                Text(
-                    text = "No scan history yet. Start scanning QR codes!",
-                    style = MaterialTheme.typography.titleLarge, // Larger text
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center
-                )
-            }
-        } else {
-            // LazyColumn for efficient scrolling of history items - now takes more weight
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .weight(3f), // Increased weight to make it the biggest field
-                verticalArrangement = Arrangement.spacedBy(8.dp), // Increased spacing between items
-                contentPadding = PaddingValues(vertical = 8.dp) // Increased vertical padding
-            ) {
-                items(scanHistory) { scanResult ->
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp), // Increased elevation
-                        shape = RoundedCornerShape(12.dp), // More rounded
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerLow.copy(alpha = 0.95f)) // Less transparent, more solid
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp), // Increased padding inside item card
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween // Distribute content
-                        ) {
-                            Text(
-                                text = scanResult,
-                                style = MaterialTheme.typography.bodyLarge, // Larger text
-                                color = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.weight(1f) // Allow text to take available space
-                            )
-                            Spacer(modifier = Modifier.width(12.dp))
-                            IconButton(
-                                onClick = {
-                                    clipboardManager.setText(AnnotatedString(scanResult))
-                                    context.showToast("Copied to clipboard!")
-                                    if (!isPremium) { // Only show ad if not premium
-                                        onShowInterstitialAd() // Show interstitial ad after copy
-                                    }
-                                },
-                                modifier = Modifier.size(48.dp) // Larger touch target for icon button
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.ContentCopy,
-                                    contentDescription = "Copy to Clipboard",
-                                    tint = MaterialTheme.colorScheme.secondary,
-                                    modifier = Modifier.size(24.dp) // Larger icon
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-            Spacer(modifier = Modifier.height(16.dp)) // Increased spacer
-            Button(
-                onClick = {
-                    userViewModel.clearScanHistory()
-                    showToast("History cleared!")
-                },
-                shape = RoundedCornerShape(12.dp), // More rounded button
-                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error), // Solid error color
-                contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp) // Increased padding
-            ) {
-                Text("Clear History", style = MaterialTheme.typography.titleMedium) // Larger text style
-            }
-        }
-        Spacer(modifier = Modifier.height(24.dp)) // Increased bottom spacer
+@Composable
+private fun ClearHistoryButton(onClear: () -> Unit) {
+    Button(
+        onClick = onClear,
+        shape = RoundedCornerShape(16.dp),
+        colors = ButtonDefaults.buttonColors(
+            containerColor = Color.White.copy(alpha = 0.1f),
+            contentColor = MaterialTheme.colorScheme.error
+        )
+    ) {
+        Icon(Icons.Default.DeleteForever, contentDescription = "Clear History")
+        Spacer(modifier = Modifier.width(8.dp))
+        Text("Clear History")
     }
 }
