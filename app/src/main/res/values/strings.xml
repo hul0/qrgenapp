@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">QRWiz</string>
+    <string name="ad_app_icon_description">Application icon for the advertisement</string>
+
 </resources>

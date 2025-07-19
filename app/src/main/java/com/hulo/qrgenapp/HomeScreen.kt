@@ -92,18 +92,14 @@ fun HomeScreen(
                 BalanceCard(coinBalance, diamondBalance)
                 Spacer(modifier = Modifier.height(24.dp))
 
-                // Quick Actions Grid - This is the responsive part.
-                QuickActionGrid(actions = actions)
+                // Quick Actions Grid - Now contains the ad
+                QuickActionGrid(
+                    actions = actions,
+                    nativeAd = nativeAd,
+                    showNativeAd = showNativeAd && !isPremiumUser // Example: Hide ad for premium users
+                )
 
-                // Native Ad - Shown at the bottom, only if needed.
-                if (showNativeAd) {
-                    Spacer(modifier = Modifier.weight(1f)) // Push ad to the bottom
-                    NativeAdViewComposable(
-                        nativeAd = nativeAd,
-                        showAd = true,
-                        modifier = Modifier.padding(bottom = 16.dp)
-                    )
-                }
+                // **REMOVED** the ad from the bottom of the screen
             }
         }
     }
@@ -167,7 +163,11 @@ fun BalanceItem(icon: ImageVector, label: String, value: String, tint: Color) {
 }
 
 @Composable
-fun QuickActionGrid(actions: List<QuickAction>) {
+fun QuickActionGrid(
+    actions: List<QuickAction>,
+    nativeAd: NativeAd?,
+    showNativeAd: Boolean
+) {
     Column(modifier = Modifier.padding(horizontal = 16.dp)) {
         Text(
             text = "Quick Actions",
@@ -176,8 +176,6 @@ fun QuickActionGrid(actions: List<QuickAction>) {
             color = Color.White,
             modifier = Modifier.padding(bottom = 16.dp)
         )
-        // LazyVerticalGrid is inherently responsive. It will fit as many columns
-        // as possible with a minimum size of 140.dp for each item.
         LazyVerticalGrid(
             columns = GridCells.Adaptive(minSize = 140.dp),
             modifier = Modifier.fillMaxWidth(),
@@ -192,6 +190,30 @@ fun QuickActionGrid(actions: List<QuickAction>) {
                     onClick = action.action
                 )
             }
+
+            // *** MODIFICATION START ***
+            // Conditionally add your existing native ad as an item in the grid
+            if (showNativeAd && nativeAd != null) {
+                item {
+                    // Wrap your existing Composable in a Card that matches the QuickActionButton style
+                    Card(
+                        modifier = Modifier
+                            .aspectRatio(1f) // Make it square
+                            .clip(RoundedCornerShape(24.dp)),
+                        shape = RoundedCornerShape(24.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.1f)),
+                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+                    ) {
+                        // Use your existing NativeAdViewComposable here.
+                        // It will now be contained within the styled Card.
+                        NativeAdViewComposable(
+                            nativeAd = nativeAd,
+                            showAd = true
+                        )
+                    }
+                }
+            }
+            // *** MODIFICATION END ***
         }
     }
 }
@@ -234,3 +256,4 @@ fun QuickActionButton(
         }
     }
 }
+
