@@ -21,7 +21,6 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -47,7 +46,6 @@ import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
@@ -69,9 +67,93 @@ import kotlinx.coroutines.launch
 import java.io.IOException
 import java.util.concurrent.Executors
 
-// --- LOGIC SECTION: BUG FIX APPLIED, OTHER LOGIC UNCHANGED ---
 
-// QRDataProcessor object is unchanged.
+// --- LOGIC SECTION IS UNCHANGED ---
+// No changes are needed in your ViewModel or data processing logic.
+
+// --- UI SECTION ---
+
+@Composable
+fun QRScanScreen(
+    viewModel: QRScanViewModel,
+    onAddCoins: (Int) -> Unit,
+    onAddScanToHistory: (String) -> Unit,
+    onShowInterstitialAd: () -> Unit,
+    isPremiumUser: Boolean,
+    showToast: (String) -> Unit,
+    nativeAd: NativeAd?,
+    showAd: Boolean,
+    // --- CHANGE 1 of 2: Accept the ad refresh function ---
+    onRefreshNativeAd: () -> Unit
+) {
+    val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+
+    uiState.toastMessage?.let { message ->
+        LaunchedEffect(message) {
+            showToast(message)
+            viewModel.toastMessageShown()
+        }
+    }
+
+    val lastProcessedScanCount = remember { mutableStateOf(viewModel.uiState.value.scanCount) }
+    LaunchedEffect(uiState.scanCount) {
+        if (uiState.scanCount > lastProcessedScanCount.value) {
+            // --- CHANGE 2 of 2: Call the refresh function here ---
+            // When a new scan is detected, request a new ad immediately.
+            onRefreshNativeAd()
+
+            uiState.scannedCode?.rawValue?.let {
+                onAddScanToHistory(it)
+                if (isNetworkAvailable(context)) {
+                    viewModel.tryAwardCoins(onAddCoins, context)
+                    if (!isPremiumUser) {
+                        onShowInterstitialAd()
+                    }
+                } else {
+                    showToast("No internet connection. Coins not awarded.")
+                }
+            }
+            lastProcessedScanCount.value = uiState.scanCount
+        }
+    }
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission(),
+        onResult = { isGranted ->
+            viewModel.onPermissionResult(isGranted)
+            if (!isGranted) {
+                showToast("Camera permission is required to scan QR codes.")
+            }
+        }
+    )
+    LaunchedEffect(key1 = true) {
+        permissionLauncher.launch(Manifest.permission.CAMERA)
+    }
+
+    Surface(modifier = Modifier.fillMaxSize()) {
+        if (uiState.hasCameraPermission) {
+            ScannerView(viewModel)
+        } else {
+            PermissionDeniedScreen { permissionLauncher.launch(Manifest.permission.CAMERA) }
+        }
+
+        AnimatedVisibility(
+            visible = uiState.isResultDialogShown && uiState.scannedCode != null,
+            enter = fadeIn() + scaleIn(initialScale = 0.8f),
+            exit = fadeOut() + scaleOut(targetScale = 0.8f)
+        ) {
+            ScanResultDialog(
+                result = uiState.scannedCode!!,
+                nativeAd = nativeAd,
+                onDismiss = { viewModel.dismissResultDialog() }
+            )
+        }
+    }
+}
+
+// ... the rest of your file (ScannerView, ScanResultDialog, etc.) remains completely unchanged.
+// You do not need to modify anything below this line in the file.
 object QRDataProcessor {
     // ... (Content from your QRDataProcessor object remains here, unchanged)
     enum class QRContentType { URL, TEXT, WIFI, CONTACT_INFO, EMAIL, PHONE, SMS, GEO_LOCATION, CALENDAR_EVENT, APP_DEEP_LINK, UNKNOWN, BARCODE }
@@ -221,83 +303,6 @@ class QRScanViewModel : ViewModel() {
 }
 
 // --- UI SECTION: COMPLETELY REVAMPED ---
-
-@Composable
-fun QRScanScreen(
-    viewModel: QRScanViewModel,
-    onAddCoins: (Int) -> Unit,
-    onAddScanToHistory: (String) -> Unit,
-    onShowInterstitialAd: () -> Unit,
-    isPremiumUser: Boolean,
-    showToast: (String) -> Unit,
-    nativeAd: NativeAd?,
-    showAd: Boolean // This parameter is no longer used on the main screen but kept for the dialog
-) {
-    val uiState by viewModel.uiState.collectAsState()
-    val context = LocalContext.current
-
-    // This logic is preserved.
-    uiState.toastMessage?.let { message ->
-        LaunchedEffect(message) {
-            showToast(message)
-            viewModel.toastMessageShown()
-        }
-    }
-
-    // This logic is preserved.
-    val lastProcessedScanCount = remember { mutableStateOf(viewModel.uiState.value.scanCount) }
-    LaunchedEffect(uiState.scanCount) {
-        if (uiState.scanCount > lastProcessedScanCount.value) {
-            uiState.scannedCode?.rawValue?.let {
-                onAddScanToHistory(it)
-                if (isNetworkAvailable(context)) {
-                    viewModel.tryAwardCoins(onAddCoins, context)
-                    if (!isPremiumUser) {
-                        onShowInterstitialAd()
-                    }
-                } else {
-                    showToast("No internet connection. Coins not awarded.")
-                }
-            }
-            lastProcessedScanCount.value = uiState.scanCount
-        }
-    }
-
-    // This logic is preserved.
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
-        onResult = { isGranted ->
-            viewModel.onPermissionResult(isGranted)
-            if (!isGranted) {
-                showToast("Camera permission is required to scan QR codes.")
-            }
-        }
-    )
-    LaunchedEffect(key1 = true) {
-        permissionLauncher.launch(Manifest.permission.CAMERA)
-    }
-
-    Surface(modifier = Modifier.fillMaxSize()) {
-        if (uiState.hasCameraPermission) {
-            ScannerView(viewModel)
-        } else {
-            PermissionDeniedScreen { permissionLauncher.launch(Manifest.permission.CAMERA) }
-        }
-
-        // The result dialog is now custom and animated.
-        AnimatedVisibility(
-            visible = uiState.isResultDialogShown && uiState.scannedCode != null,
-            enter = fadeIn() + scaleIn(initialScale = 0.8f),
-            exit = fadeOut() + scaleOut(targetScale = 0.8f)
-        ) {
-            ScanResultDialog(
-                result = uiState.scannedCode!!,
-                nativeAd = nativeAd,
-                onDismiss = { viewModel.dismissResultDialog() }
-            )
-        }
-    }
-}
 
 @Composable
 fun ScannerView(viewModel: QRScanViewModel) {

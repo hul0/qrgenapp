@@ -146,7 +146,7 @@ class MainActivity : ComponentActivity() {
             loadInterstitialAd()
             loadRewardedAd()
             loadRewardedInterstitialAd()
-            loadNativeAd()
+            loadNativeAd() // Keep this initial load
         }
 
         // Set the content of the activity using Jetpack Compose
@@ -173,7 +173,9 @@ class MainActivity : ComponentActivity() {
                         darkTheme = false,
                         onToggleTheme = {},
                         nativeAd = mNativeAd,
-                        isPremiumUser = userUiState.isPremium
+                        isPremiumUser = userUiState.isPremium,
+                        // --- MINIMAL CHANGE 1 of 2: Pass the ad loading function down ---
+                        onRefreshNativeAd = ::loadNativeAd // Pass the function to be called on navigation
                     )
                 }
             }
@@ -384,12 +386,16 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun loadNativeAd() {
-        if (isNativeAdLoading || mNativeAd != null) return
+        if (isNativeAdLoading) return // Prevent multiple rapid loads
         isNativeAdLoading = true
+
+        // Destroy the previous ad before loading a new one. This is key.
+        mNativeAd?.destroy()
+        mNativeAd = null
+
         val adLoader = AdLoader.Builder(this, NATIVE_AD_UNIT_ID)
             .forNativeAd { nativeAd ->
-                mNativeAd?.destroy()
-                mNativeAd = nativeAd
+                mNativeAd = nativeAd // This will trigger recomposition
                 isNativeAdLoading = false
                 // NEW: Set paid event listener for LTV
                 nativeAd.setOnPaidEventListener { adValue ->
@@ -399,7 +405,11 @@ class MainActivity : ComponentActivity() {
                 Log.d(AD_LOG_TAG, "Native ad loaded successfully.")
             }
             .withAdListener(object : AdListener() {
-                override fun onAdFailedToLoad(adError: LoadAdError) { mNativeAd = null; isNativeAdLoading = false; Log.e(AD_LOG_TAG, "Native ad failed to load: ${adError.message}") }
+                override fun onAdFailedToLoad(adError: LoadAdError) {
+                    mNativeAd = null
+                    isNativeAdLoading = false
+                    Log.e(AD_LOG_TAG, "Native ad failed to load: ${adError.message}")
+                }
                 // NEW: Track impression for LTV
                 override fun onAdImpression() {
                     super.onAdImpression()
@@ -439,7 +449,8 @@ fun MainAppScreen(
     darkTheme: Boolean,
     onToggleTheme: () -> Unit,
     nativeAd: NativeAd?,
-    isPremiumUser: Boolean
+    isPremiumUser: Boolean,
+    onRefreshNativeAd: () -> Unit // Accept the function here
 ) {
     val navController = rememberNavController()
     val userUiState by userViewModel.uiState.collectAsState()
@@ -456,11 +467,18 @@ fun MainAppScreen(
         }
     }
 
+    // --- MINIMAL CHANGE 2 of 2: Trigger the ad reload on navigation ---
     LaunchedEffect(navController) {
+        navController.addOnDestinationChangedListener { _, _, _ ->
+            // Every time the screen changes, refresh the native ad.
+            onRefreshNativeAd()
+        }
+        // This second collector is for your interstitial ads, keep it.
         navController.currentBackStackEntryFlow.collect {
             onShowInterstitialAd()
         }
     }
+
 
     Scaffold(
         topBar = {
@@ -542,6 +560,7 @@ fun MainAppScreen(
             modifier = Modifier.padding(innerPadding).fillMaxSize()
         ) {
             // --- NavHost composable routes ---
+            // YOU DO NOT NEED TO CHANGE ANY OF THESE
             composable(Screen.Home.route) {
                 HomeScreen(
                     coinBalance = userUiState.coins,
@@ -577,9 +596,13 @@ fun MainAppScreen(
                     isPremiumUser = isPremiumUser,
                     showToast = { message -> context.showToast(message) },
                     nativeAd = nativeAd,
-                    showAd = !isPremiumUser
+                    showAd = !isPremiumUser,
+                    // --- ADD THIS LINE ---
+                    // Pass the ad refresh function down to the screen.
+                    onRefreshNativeAd = onRefreshNativeAd
                 )
             }
+
             composable(Screen.GainCoins.route) {
                 GainCoinsScreen(
                     coinBalance = userUiState.coins,
@@ -708,6 +731,7 @@ fun BannerAd(adUnitId: String, userViewModel: UserViewModel, modifier: Modifier 
 }
 
 // --- Native Ad Composable ---
+// NO CHANGES NEEDED HERE
 @Composable
 fun NativeAdViewComposable(
     nativeAd: NativeAd?,
