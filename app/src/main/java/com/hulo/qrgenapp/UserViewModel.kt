@@ -324,7 +324,7 @@ class UserViewModel(private val userPreferences: UserPreferences) : ViewModel() 
 
     private fun addSimulatedRevenue(ecpm: Double) {
         // Calculate revenue for a single impression from the eCPM value
-        val revenueForOneImpression = ecpm / 2000.0
+        val revenueForOneImpression = ecpm / 1000.0
         // Convert to micros (Long) to store without floating point errors
         val revenueMicros = (revenueForOneImpression * 1_000_000).toLong()
         userPreferences.addRevenueMicros(revenueMicros)
