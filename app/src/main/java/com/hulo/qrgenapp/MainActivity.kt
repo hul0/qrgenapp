@@ -472,16 +472,16 @@ fun MainAppScreen(
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Purple700),
                 actions = {
-                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 8.dp)) {
-                        Icon(Icons.Default.TrendingUp, "LTV", tint = White, modifier = Modifier.size(20.dp))
-                        Spacer(Modifier.width(4.dp))
-                        Text(
-                            text = "₹${String.format(Locale.US, "%.4f", userUiState.totalLtvInr)} | ${userUiState.interstitialImpressions} | ${userUiState.nativeImpressions} | ${userUiState.bannerImpressions} | ${userUiState.rewardedImpressions} | ${userUiState.rewardedInterstitialImpressions}",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Normal,
-                            color = White
-                        )
-                    }
+//                    Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 8.dp)) {
+//                        Icon(Icons.Default.TrendingUp, "LTV", tint = White, modifier = Modifier.size(20.dp))
+//                        Spacer(Modifier.width(4.dp))
+//                        Text(
+//                            text = "₹${String.format(Locale.US, "%.4f", userUiState.totalLtvInr)} | ${userUiState.interstitialImpressions} | ${userUiState.nativeImpressions} | ${userUiState.bannerImpressions} | ${userUiState.rewardedImpressions} | ${userUiState.rewardedInterstitialImpressions}",
+//                            style = MaterialTheme.typography.titleSmall,
+//                            fontWeight = FontWeight.Normal,
+//                            color = White
+//                        )
+//                    }
                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(end = 8.dp)) {
                         Icon(Icons.Default.MonetizationOn, "Coin Balance", tint = Yellow, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(4.dp))

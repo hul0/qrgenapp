@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
@@ -115,12 +116,11 @@ fun BalanceCard(coinBalance: Int, diamondBalance: Int) {
         colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.15f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp) // No elevation for glassmorphism
     ) {
-        Row(
+        FlowRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(vertical = 20.dp, horizontal = 16.dp),
             horizontalArrangement = Arrangement.SpaceAround,
-            verticalAlignment = Alignment.CenterVertically
         ) {
             BalanceItem(Icons.Default.MonetizationOn, "Coins", coinBalance.toString(), Color(0xFFFFD700))
             // Vertical divider for visual separation
@@ -191,29 +191,7 @@ fun QuickActionGrid(
                 )
             }
 
-            // *** MODIFICATION START ***
-            // Conditionally add your existing native ad as an item in the grid
-            if (showNativeAd && nativeAd != null) {
-                item {
-                    // Wrap your existing Composable in a Card that matches the QuickActionButton style
-                    Card(
-                        modifier = Modifier
-                            .aspectRatio(1f) // Make it square
-                            .clip(RoundedCornerShape(24.dp)),
-                        shape = RoundedCornerShape(24.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.1f)),
-                        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-                    ) {
-                        // Use your existing NativeAdViewComposable here.
-                        // It will now be contained within the styled Card.
-                        NativeAdViewComposable(
-                            nativeAd = nativeAd,
-                            showAd = true
-                        )
-                    }
-                }
-            }
-            // *** MODIFICATION END ***
+
         }
     }
 }

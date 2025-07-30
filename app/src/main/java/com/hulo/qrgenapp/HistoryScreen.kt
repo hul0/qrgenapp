@@ -57,13 +57,23 @@ fun HistoryScreen(
         if (uiState.scanHistory.isEmpty()) {
             add(HistoryListItem.EmptyState)
         } else {
-            val historyWithAd = uiState.scanHistory.map<String, HistoryListItem> { HistoryListItem.HistoryItem(it) }.toMutableList()
-            // The ad is inserted as a UI element in the list.
-            if (showAd) {
-                val adPosition = 4.coerceAtMost(historyWithAd.size)
-                historyWithAd.add(adPosition, HistoryListItem.AdItem(nativeAd))
+            val historyItems = uiState.scanHistory.map { HistoryListItem.HistoryItem(it) }
+
+            // MODIFICATION: Add an ad after every 5 history items.
+            if (showAd && nativeAd != null) {
+                val itemsWithAds = mutableListOf<HistoryListItem>()
+                historyItems.forEachIndexed { index, item ->
+                    itemsWithAds.add(item)
+                    // Add an ad after the 5th, 10th, 15th item, etc.
+                    if ((index + 1)  == 5 && (index + 1) < historyItems.size) {
+                        itemsWithAds.add(HistoryListItem.AdItem(nativeAd))
+                    }
+                }
+                addAll(itemsWithAds)
+            } else {
+                addAll(historyItems)
             }
-            addAll(historyWithAd)
+
             add(HistoryListItem.ClearButton {
                 userViewModel.clearScanHistory()
                 showToast("History cleared!")
@@ -93,6 +103,8 @@ fun HistoryScreen(
                 key = { item ->
                     when (item) {
                         is HistoryListItem.HistoryItem -> item.text + System.nanoTime()
+                        is HistoryListItem.AdItem -> item.nativeAd?.headline
+                            ?: ("ad" + System.nanoTime())
                         else -> item.javaClass.simpleName
                     }
                 }
@@ -113,10 +125,10 @@ fun HistoryScreen(
                         },
                         modifier = Modifier.padding(horizontal = 16.dp)
                     )
-                    is HistoryListItem.AdItem -> NativeAdViewComposable(
+                    // MODIFICATION: The ad is now styled to look like a history item.
+                    is HistoryListItem.AdItem -> StyledNativeAdCard(
                         nativeAd = item.nativeAd,
-                        showAd = true,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                        modifier = Modifier.padding(horizontal = 16.dp)
                     )
                     is HistoryListItem.EmptyState -> EmptyHistoryView(Modifier.fillParentMaxHeight(0.7f))
                     is HistoryListItem.ClearButton -> ClearHistoryButton(item.onClear)
@@ -129,6 +141,39 @@ fun HistoryScreen(
 }
 
 // --- UI-Only Components Below ---
+
+// MODIFICATION: New composable to style the native ad.
+@Composable
+private fun StyledNativeAdCard(nativeAd: NativeAd?, modifier: Modifier = Modifier) {
+    // This Card is styled exactly like HistoryItemCard for a consistent look.
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.1f))
+    ) {
+        // Box is used to layer the "Ad" tag on top of the ad content.
+        Box {
+            // Your transparent NativeAdViewComposable fits perfectly inside.
+            NativeAdViewComposable(
+                nativeAd = nativeAd,
+                showAd = true
+            )
+            // Ad tag for policy compliance and clarity.
+            Text(
+                text = "Ad",
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(8.dp)
+                    .background(Color.Black.copy(alpha = 0.6f), RoundedCornerShape(4.dp))
+                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                color = Color.White,
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold
+            )
+        }
+    }
+}
+
 
 @Composable
 private fun ScreenHeader(title: String, icon: androidx.compose.ui.graphics.vector.ImageVector) {
