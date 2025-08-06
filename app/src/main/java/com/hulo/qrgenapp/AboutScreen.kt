@@ -69,7 +69,7 @@ fun AboutScreen(
                         color = Color.White
                     )
                     Text(
-                        text = "Version 3.0.0",
+                        text = "Version 3.0.1",
                         style = MaterialTheme.typography.bodyLarge,
                         color = Color.White.copy(alpha = 0.7f)
                     )
@@ -83,6 +83,15 @@ fun AboutScreen(
                         text = "QRWiz is a versatile and user-friendly application designed to simplify your QR code interactions. Whether you need to quickly generate a QR code for sharing information or efficiently scan one to access content, our app provides a seamless experience.",
                         style = MaterialTheme.typography.bodyLarge,
                         color = Color.White.copy(alpha = 0.8f)
+                    )
+                }
+            }
+            item {
+                InfoCard(title = "Caution", icon = Icons.Default.WarningAmber) {
+                    Text(
+                        text = "All your coins and Diamonds are stored locally in your device storage. If you uninstall the app or clear the data of this app , ALL YOUR COINS & DIAMONDS WILL BE LOST!!",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = Color.White.copy(0.8f)
                     )
                 }
             }

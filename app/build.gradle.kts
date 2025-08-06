@@ -13,8 +13,8 @@ android {
 
         minSdk = 24
         targetSdk = 36
-        versionCode = 8
-        versionName = "3.0.0"
+        versionCode = 9
+        versionName = "3.0.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -35,6 +35,7 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
+            ndk.debugSymbolLevel = "FULL"
             // ADDED THIS LINE: Disable stripping of debug symbols for native libraries
         }
         debug {

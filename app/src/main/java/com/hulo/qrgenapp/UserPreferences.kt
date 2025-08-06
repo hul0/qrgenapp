@@ -28,7 +28,7 @@ class UserPreferences(context: Context) {
         private const val KEY_NATIVE_IMPRESSIONS = "native_impressions"
         private const val KEY_TOTAL_LTV_MICROS = "total_ltv_micros"
 
-        const val DEFAULT_STARTING_COINS = 0
+        const val DEFAULT_STARTING_COINS = 20
         const val DEFAULT_STARTING_DIAMONDS = 0
         const val FREE_USER_HISTORY_LIMIT = 20
     }

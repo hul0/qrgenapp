@@ -11,6 +11,7 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
 import androidx.compose.foundation.background
@@ -33,6 +34,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.core.view.WindowCompat
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.NavHost
@@ -61,16 +63,15 @@ import com.google.android.play.core.install.model.UpdateAvailability
 import com.hulo.qrgenapp.ui.theme.QRGenAppTheme
 import java.util.*
 
-private const val INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-3940256099942544/1033173712"
-private const val REWARDED_AD_UNIT_ID = "ca-app-pub-3940256099942544/5224354917"
-private const val REWARDED_INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-3940256099942544/5354046379"
-private const val NATIVE_AD_UNIT_ID = "ca-app-pub-3940256099942544/2247696110"
-private const val BANNER_AD_UNIT_ID = "ca-app-pub-3940256099942544/6300978111"
+private const val INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-6055256286531369/9708301146"
+private const val REWARDED_AD_UNIT_ID = "ca-app-pub-6055256286531369/4762579306"
+private const val REWARDED_INTERSTITIAL_AD_UNIT_ID = "ca-app-pub-6055256286531369/3809412099"
+private const val NATIVE_AD_UNIT_ID = "ca-app-pub-6055256286531369/1802509510"
 private const val AD_LOG_TAG = "AdMob"
 private const val APP_UPDATE_TAG = "AppUpdate"
 private const val MANDATORY_UPDATE_STALENESS_DAYS = 7
 private const val HIGH_PRIORITY_UPDATE = 4
-private const val NATIVE_AD_CACHE_SIZE = 3
+private const val NATIVE_AD_CACHE_SIZE = 5
 
 class MainActivity : ComponentActivity() {
 
@@ -88,8 +89,8 @@ class MainActivity : ComponentActivity() {
 
     private var userActionCount = 0
     private var lastInterstitialTime = 0L
-    private val minInterstitialInterval = 40000L
-    private val actionsBeforeInterstitial = 5
+    private val minInterstitialInterval = 50000L
+    private val actionsBeforeInterstitial = 7
 
     private var isInterstitialLoading = false
     private var isRewardedLoading = false
@@ -112,7 +113,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
+        enableEdgeToEdge()
         val userPreferences = UserPreferences(applicationContext)
         userViewModel = UserViewModel(userPreferences)
 
@@ -497,9 +498,7 @@ fun MainAppScreen(
         },
         bottomBar = {
             Column {
-                if (!isPremiumUser) {
-                    BannerAd(adUnitId = BANNER_AD_UNIT_ID, userViewModel = userViewModel)
-                }
+
                 NavigationBar(containerColor = Purple700) {
                     val navBackStackEntry by navController.currentBackStackEntryAsState()
                     val currentDestination = navBackStackEntry?.destination
@@ -527,6 +526,8 @@ fun MainAppScreen(
                 }
             }
         }
+       ,
+        modifier = Modifier.systemBarsPadding()
     ) { innerPadding ->
         NavHost(
             navController = navController,
@@ -696,37 +697,52 @@ fun BannerAd(adUnitId: String, userViewModel: UserViewModel, modifier: Modifier 
     )
 }
 
+/**
+ * A composable function for displaying a native ad view.
+ * It provides a responsive container for the ad content and shows a loading state if the ad is not yet available.
+ *
+ * @param nativeAd The [NativeAd] object to display. If null, a loading indicator is shown.
+ * @param modifier The modifier to be applied to the outer container.
+ * @param showAd A boolean to control the visibility of the entire composable.
+ */
 @Composable
 fun NativeAdViewComposable(
     nativeAd: NativeAd?,
     modifier: Modifier = Modifier,
     showAd: Boolean = true
 ) {
+    // Return early if the ad should not be shown, optimizing rendering.
     if (!showAd) {
         return
     }
 
-    // A Card with a transparent background and no elevation.
-    Card(
-        modifier = modifier.fillMaxWidth().fillMaxSize(),
-        shape = RoundedCornerShape(0.dp), // Shape is kept to round the media view if it's the first item.
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp) // No shadow.
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .fillMaxSize()
-                .aspectRatio(16f / 9f)
+    // Using BoxWithConstraints to make the container responsive to its parent's size.
+    // This allows for dynamic sizing and layout adjustments on different devices.
+    Box(modifier = modifier) {
+        val containerModifier = Modifier
+            .fillMaxWidth()
+            .wrapContentHeight() // The height adjusts to the content, which is key for native ads.
+            .padding(16.dp) // Added padding to give the ad a cleaner look and stand out from the rest of the UI.
+
+        // A Card that acts as the container for the ad, providing a subtle, polished look.
+        Card(
+            modifier = containerModifier,
+            // A rounded corner shape for a modern design.
+            shape = RoundedCornerShape(12.dp),
+            // A slightly elevated background to visually separate it from other content.
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
-            if (nativeAd == null) {
-                // Loading State
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier.fillMaxSize()
-                ) {
-                    // The loading indicator remains visible on the transparent background.
+            Box(
+                modifier = Modifier.fillMaxWidth().wrapContentHeight()
+            ) {
+                if (nativeAd == null) {
+                    // Loading State: Centered content with a progress indicator.
                     Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(150.dp) // Fixed height for loading state to prevent layout shifts.
+                            .align(Alignment.Center),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         verticalArrangement = Arrangement.Center
                     ) {
@@ -738,64 +754,64 @@ fun NativeAdViewComposable(
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
+                } else {
+                    // Ad content: The AndroidView displays the ad from the XML layout.
+                    AndroidView(
+                        modifier = Modifier.fillMaxWidth().wrapContentHeight(),
+                        factory = { context ->
+                            LayoutInflater.from(context)
+                                .inflate(R.layout.ad_unified, null) as NativeAdView
+                        },
+                        update = { adView ->
+                            // This ad binding logic remains unchanged, as per your request.
+                            val headlineView = adView.findViewById<TextView>(R.id.ad_headline)
+                            val bodyView = adView.findViewById<TextView>(R.id.ad_body)
+                            val callToActionView = adView.findViewById<AndroidButton>(R.id.ad_call_to_action)
+                            val iconView = adView.findViewById<ImageView>(R.id.ad_app_icon)
+                            val advertiserView = adView.findViewById<TextView>(R.id.ad_advertiser)
+                            val mediaView = adView.findViewById<MediaView>(R.id.ad_media)
+
+                            adView.setNativeAd(nativeAd)
+                            adView.mediaView = mediaView
+                            adView.headlineView = headlineView
+                            adView.bodyView = bodyView
+                            adView.callToActionView = callToActionView
+                            adView.iconView = iconView
+                            adView.advertiserView = advertiserView
+
+                            headlineView.text = nativeAd.headline
+                            mediaView.mediaContent = nativeAd.mediaContent
+                            bodyView.text = nativeAd.body
+                            callToActionView.text = nativeAd.callToAction
+
+                            if (nativeAd.icon == null) {
+                                iconView.visibility = View.GONE
+                            } else {
+                                iconView.setImageDrawable(nativeAd.icon?.drawable)
+                                iconView.visibility = View.VISIBLE
+                            }
+
+                            if (nativeAd.advertiser == null) {
+                                advertiserView.visibility = View.INVISIBLE
+                            } else {
+                                advertiserView.text = nativeAd.advertiser
+                                advertiserView.visibility = View.VISIBLE
+                            }
+                        }
+                    )
                 }
-            } else {
-                // Ad content with its own background set to transparent in the XML.
-                AndroidView(
-                    modifier = Modifier.fillMaxSize(),
-                    factory = { context ->
-                        LayoutInflater.from(context)
-                            .inflate(R.layout.ad_unified, null) as NativeAdView
-                    },
-                    update = { adView ->
-                        // This logic remains unchanged.
-                        val headlineView = adView.findViewById<TextView>(R.id.ad_headline)
-                        val bodyView = adView.findViewById<TextView>(R.id.ad_body)
-                        val callToActionView = adView.findViewById<AndroidButton>(R.id.ad_call_to_action)
-                        val iconView = adView.findViewById<ImageView>(R.id.ad_app_icon)
-                        val advertiserView = adView.findViewById<TextView>(R.id.ad_advertiser)
-                        val mediaView = adView.findViewById<MediaView>(R.id.ad_media)
 
-                        adView.setNativeAd(nativeAd)
-                        adView.mediaView = mediaView
-                        adView.headlineView = headlineView
-                        adView.bodyView = bodyView
-                        adView.callToActionView = callToActionView
-                        adView.iconView = iconView
-                        adView.advertiserView = advertiserView
-
-                        headlineView.text = nativeAd.headline
-                        mediaView.mediaContent = nativeAd.mediaContent
-                        bodyView.text = nativeAd.body
-                        callToActionView.text = nativeAd.callToAction
-
-                        if (nativeAd.icon == null) {
-                            iconView.visibility = View.GONE
-                        } else {
-                            iconView.setImageDrawable(nativeAd.icon?.drawable)
-                            iconView.visibility = View.VISIBLE
-                        }
-
-                        if (nativeAd.advertiser == null) {
-                            advertiserView.visibility = View.INVISIBLE
-                        } else {
-                            advertiserView.text = nativeAd.advertiser
-                            advertiserView.visibility = View.VISIBLE
-                        }
-                    }
-                )
-
-                // The "Ad" badge remains visible.
+                // The "Ad" badge is a crucial part of the UI, and its styling has been improved.
                 Text(
                     text = "Ad",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                    color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier
                         .align(Alignment.TopStart)
                         .padding(4.dp)
                         .background(
-                            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.8f),
-                            shape = RoundedCornerShape(6.dp)
+                            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                            shape = RoundedCornerShape(topStart = 6.dp, bottomEnd = 6.dp)
                         )
                         .padding(horizontal = 6.dp, vertical = 2.dp)
                 )
@@ -803,4 +819,5 @@ fun NativeAdViewComposable(
         }
     }
 }
+
 
